@@ -1,0 +1,22 @@
+---test_module
+    |   main.tf
+    |   moved.tf
+    |   outputs.tf
+    |   variables.tf
+    |   versions.tf
+    |   
+    +---net_module
+    |       main.tf
+    |       outputs.tf
+    |       variables.tf
+    |       
+    \---project
+        |   .terraform.lock.hcl
+        |   main.tf
+        |   outputs.tf
+        |   plan_results.txt
+        |   terraform.tfstate
+        |   terraform.tfstate.backup
+        |   terraform.tfvars
+        |   variables.tf
+        |   versions.tf

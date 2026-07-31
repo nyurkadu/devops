@@ -1,0 +1,2 @@
+workspace_name=prod
+workgroup_name=avi_ws_gr

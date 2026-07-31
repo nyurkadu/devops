@@ -1,0 +1,2 @@
+workspace_name=dev
+workgroup_name=avi_ws_gr

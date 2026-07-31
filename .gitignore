@@ -1,0 +1,7 @@
+.env
+.vscode
+*.mp4
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars

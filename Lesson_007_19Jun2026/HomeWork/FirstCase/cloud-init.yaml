@@ -1,0 +1,26 @@
+#cloud-config
+
+package_update: true
+
+packages:
+  - nginx
+
+write_files:
+  - path: /var/www/html/index.html
+    permissions: "0644"
+    content: |
+      <!doctype html>
+      <html lang="ru">
+        <head>
+          <meta charset="utf-8">
+          <title>Terraform cloud-init</title>
+        </head>
+        <body>
+          <h1>Nginx установлен через cloud-init</h1>
+          <p>Источник настройки: custom_data в azurerm_linux_virtual_machine.</p>
+        </body>
+      </html>
+
+runcmd:
+  - systemctl enable nginx
+  - systemctl restart nginx

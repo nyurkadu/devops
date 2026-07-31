@@ -1,0 +1,2 @@
+subscription_id     = "7a016bad-eb8a-41c2-acc2-af1d1d"
+ssh_public_key_path = "~/.ssh/id_rsa.pub"
