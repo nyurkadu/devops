@@ -1,0 +1,74 @@
+---
+# Deploys and configures Nginx on every host in inventory.ini, installing via
+# apt on Debian-family hosts and dnf on RedHat-family hosts based on gathered facts.
+- name: Deploy Nginx on all nodes (Ubuntu via apt, CentOS/Rocky via dnf)
+  hosts: all
+  become: true
+  gather_facts: true  # required — ansible_os_family/ansible_distribution/etc. drive the "when"s below and the templates
+
+  tasks:
+    - name: Update apt cache (Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    # nginx isn't in Rocky's base repos — EPEL provides it.
+    - name: Install EPEL repo (RedHat family, needed for nginx package)
+      ansible.builtin.dnf:
+        name: epel-release
+        state: present
+      # "or ansible_distribution == 'Rocky'" is a workaround: Ansible 2.10.8
+      # (what `apt install ansible` gives you on Ubuntu 22.04) predates Rocky
+      # Linux and reports ansible_os_family as "Rocky" instead of "RedHat" —
+      # without this, every RedHat-only task below silently skips on node2-centos.
+      when: ansible_os_family == "RedHat" or ansible_distribution == "Rocky"
+
+    - name: Update dnf cache (RedHat/CentOS)
+      ansible.builtin.dnf:
+        update_cache: yes
+      when: ansible_os_family == "RedHat" or ansible_distribution == "Rocky"
+
+    - name: Install Nginx on Debian/Ubuntu
+      ansible.builtin.apt:
+        name: "{{ nginx_package }}"  # from group_vars/ubuntu.yml — no hardcoded package name
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install Nginx on RedHat/CentOS
+      ansible.builtin.dnf:
+        name: "{{ nginx_package }}"  # from group_vars/centos.yml
+        state: present
+      when: ansible_os_family == "RedHat" or ansible_distribution == "Rocky"
+
+    - name: Deploy nginx.conf from template
+      ansible.builtin.template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+        owner: root
+        group: root
+        mode: "0644"
+      # Handler fires only when this task reports "changed" — i.e. only when
+      # the freshly rendered config actually differs from what's on disk.
+      notify: Restart nginx
+
+    - name: Deploy index.html from template
+      ansible.builtin.template:
+        src: templates/index.html.j2
+        dest: /usr/share/nginx/html/index.html
+        owner: root
+        group: root
+        mode: "0644"
+      # No notify here — nginx re-reads static files on every request, no reload needed.
+
+    # These containers have no systemd/init (sleep infinity is PID 1, see Step 1),
+    # so ansible.builtin.service/systemd has nothing to manage. nginx daemonizes
+    # itself when run bare; "creates" keeps this idempotent across reruns.
+    - name: Start Nginx master process (no systemd in container, start once)
+      ansible.builtin.command: nginx
+      args:
+        creates: /run/nginx.pid
+
+  handlers:
+    # "-s reload" re-reads the config without dropping connections (unlike a full restart).
+    - name: Restart nginx
+      ansible.builtin.command: nginx -s reload

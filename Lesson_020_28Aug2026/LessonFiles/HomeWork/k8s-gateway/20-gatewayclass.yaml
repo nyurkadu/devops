@@ -1,0 +1,10 @@
+# GatewayClass — аналог IngressClass. Cluster-scoped (без namespace).
+# Говорит: "гейтвеи этого класса обслуживает контроллер Envoy Gateway".
+# controllerName должен ТОЧНО совпадать с тем, что заявляет контроллер,
+# иначе GatewayClass останется в состоянии Accepted=False.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller

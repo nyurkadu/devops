@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc-demo
+  labels:
+    app: svc-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: svc-demo          # по этому лейблу поды принадлежат ReplicaSet'у
+  template:
+    metadata:
+      labels:
+        app: svc-demo        # "владение" контроллером
+        tier: web            # "членство" в сервисе — отдельный лейбл
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: nginx
+          image: nginx:1.27
+          # каждый под представляется своим именем — так видно, кто ответил через сервис
+          command:
+            - /bin/sh
+            - -c
+            - >
+              echo "I am $HOSTNAME" > /usr/share/nginx/html/index.html &&
+              exec nginx -g 'daemon off;'
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 3
+          # задержка перед остановкой: под успевает побыть в состоянии Terminating,
+          # и видно, как эндпоинт помечается terminating до фактической смерти пода
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "15"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-demo-svc
+spec:
+  type: ClusterIP
+  selector:
+    tier: web                # сервис отбирает поды по tier, а не по app
+  ports:
+    - name: http
+      port: 8080             # порт самого сервиса
+      targetPort: 80         # порт в контейнере

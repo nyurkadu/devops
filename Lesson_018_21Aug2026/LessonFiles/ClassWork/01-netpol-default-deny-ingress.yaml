@@ -1,0 +1,30 @@
+# Проверочная политика: запретить ВЕСЬ входящий трафик ко всем подам
+# в namespace default.
+#
+# Смысл теста: на CNI без поддержки policy (bridge, kindnet) объект
+# создастся, но трафик продолжит ходить. На Calico запрос сразу
+# начинает отваливаться по таймауту — это и есть доказательство,
+# что CNI с enforcement политик подключен.
+#
+# Проверка:
+#   kubectl exec client -- wget -qO- --timeout=5 http://<IP пода web>
+#   ожидаемо: wget: download timed out
+#
+# Удалить после проверки:
+#   kubectl delete -f 01-netpol-default-deny-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: default
+spec:
+  # Пустой селектор {} = политика применяется ко ВСЕМ подам namespace.
+  # Если указать matchLabels, под политику попадут только помеченные поды.
+  podSelector: {}
+  # Ограничиваем только входящий трафик; исходящий не трогаем —
+  # поды по-прежнему могут ходить наружу.
+  policyTypes:
+    - Ingress
+  # Секции ingress: нет вовсе => нет ни одного разрешающего правила
+  # => разрешено ничего. Правил "запретить" в NetworkPolicy не существует,
+  # запрет получается отсутствием разрешений.

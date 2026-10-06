@@ -1,0 +1,7 @@
+---
+# Все сценарии подряд (кроме 06 - ему нужны обязательные -e переменные).
+- ansible.builtin.import_playbook: 01_ignore_errors.yml
+- ansible.builtin.import_playbook: 02_failed_when.yml
+- ansible.builtin.import_playbook: 03_changed_when.yml
+- ansible.builtin.import_playbook: 04_thresholds.yml
+- ansible.builtin.import_playbook: 05_block_rescue_always.yml

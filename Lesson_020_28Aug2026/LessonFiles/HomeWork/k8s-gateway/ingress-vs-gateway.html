@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Конспект: чем Gateway API отличается от Ingress — ролевая модель, сопоставление полей, путь трафика, что меняется в NetworkPolicy.">
+<style>
+  html { -webkit-text-size-adjust: 100%; }
+  body, h1, h2, h3, p, ul, ol, figure, pre, blockquote { margin: 0; }
+  ul, ol { padding: 0; }
+  img, svg { max-width: 100%; }
+  table { border-spacing: 0; }
+</style>
+<title>Ingress против Gateway API</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;600;700&family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+
+<style>
+  :root {
+    --bg:          #F5F7F9;
+    --surface:     #FFFFFF;
+    --surface-2:   #EBEFF4;
+    --ink:         #121A21;
+    --muted:       #5A6874;
+    --line:        #D8DFE7;
+    --line-soft:   #E7ECF1;
+    --accent:      #1C6E9C;
+    --accent-soft: #E2EEF6;
+    --allow:       #0E7350;
+    --allow-soft:  #DFF0E8;
+    --deny:        #AC3F24;
+    --deny-soft:   #F8E7E1;
+    --warn:        #8A5A00;
+    --warn-soft:   #FBF0D9;
+    --code-bg:     #EFF3F7;
+
+    --f-display: "Bitter", Georgia, "Times New Roman", serif;
+    --f-body:    "Golos Text", "Segoe UI", system-ui, sans-serif;
+    --f-mono:    "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+
+    --measure: 66ch;
+    --radius: 8px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:          #0E1318;
+      --surface:     #151B22;
+      --surface-2:   #1C232B;
+      --ink:         #E2E8EE;
+      --muted:       #93A1AD;
+      --line:        #2A333C;
+      --line-soft:   #212931;
+      --accent:      #6FB4E0;
+      --accent-soft: #16303F;
+      --allow:       #4EBE93;
+      --allow-soft:  #103226;
+      --deny:        #E8845F;
+      --deny-soft:   #35190F;
+      --warn:        #E5B45A;
+      --warn-soft:   #33260C;
+      --code-bg:     #11171D;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg:          #0E1318;
+    --surface:     #151B22;
+    --surface-2:   #1C232B;
+    --ink:         #E2E8EE;
+    --muted:       #93A1AD;
+    --line:        #2A333C;
+    --line-soft:   #212931;
+    --accent:      #6FB4E0;
+    --accent-soft: #16303F;
+    --allow:       #4EBE93;
+    --allow-soft:  #103226;
+    --deny:        #E8845F;
+    --deny-soft:   #35190F;
+    --warn:        #E5B45A;
+    --warn-soft:   #33260C;
+    --code-bg:     #11171D;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px 96px; }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+  /* ---------- header ---------- */
+  header.masthead {
+    padding: 72px 0 40px;
+    border-bottom: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 20px;
+  }
+  .eyebrow {
+    font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  h1 {
+    font-family: var(--f-display); font-weight: 700;
+    font-size: clamp(34px, 6vw, 54px); line-height: 1.08; letter-spacing: -0.015em;
+    text-wrap: balance; max-width: 20ch;
+  }
+  .deck { max-width: var(--measure); font-size: 19px; color: var(--muted); }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px; font-family: var(--f-mono); font-size: 12px; }
+  .facts span {
+    border: 1px solid var(--line); background: var(--surface);
+    border-radius: 100px; padding: 4px 12px; color: var(--muted);
+  }
+
+  /* ---------- toc ---------- */
+  nav.toc {
+    padding: 28px 0; border-bottom: 1px solid var(--line-soft);
+    font-size: 15px;
+  }
+  nav.toc ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px 24px; padding-left: 1.4em; }
+  nav.toc a { text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+
+  /* ---------- section scaffold ---------- */
+  main { display: flex; flex-direction: column; }
+  section.step {
+    display: grid; grid-template-columns: 1fr; gap: 0 28px;
+    padding: 52px 0; border-bottom: 1px solid var(--line-soft);
+  }
+  @media (min-width: 860px) { section.step { grid-template-columns: 64px minmax(0, 1fr); } }
+  .stepnum {
+    font-family: var(--f-mono); font-size: 13px; font-weight: 700;
+    color: var(--accent); padding-top: 10px; letter-spacing: 0.04em;
+  }
+  .stepnum::after { content: ""; display: block; width: 26px; height: 1px; background: var(--line); margin-top: 12px; }
+  @media (max-width: 859px) { .stepnum { margin-bottom: 8px; } .stepnum::after { display: none; } }
+
+  .body { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  .body > * { max-width: var(--measure); }
+  .body > figure, .body > .wide, .body > .compare, .body > .cards { max-width: 100%; }
+
+  h2 {
+    font-family: var(--f-display); font-weight: 600;
+    font-size: clamp(24px, 3.4vw, 32px); line-height: 1.18; letter-spacing: -0.01em; text-wrap: balance;
+  }
+  h3 { font-family: var(--f-body); font-weight: 600; font-size: 18px; margin-top: 8px; text-wrap: balance; }
+  p { margin: 0; }
+  strong { font-weight: 600; }
+  em { font-style: normal; color: var(--muted); }
+  ul, ol { margin: 0; padding-left: 1.25em; display: flex; flex-direction: column; gap: 8px; }
+  li::marker { color: var(--muted); }
+
+  /* ---------- code ---------- */
+  code {
+    font-family: var(--f-mono); font-size: 0.855em; background: var(--code-bg);
+    border: 1px solid var(--line-soft); border-radius: 4px; padding: 1px 5px; word-break: break-word;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 18px; overflow-x: auto; margin: 0;
+  }
+  pre code {
+    background: none; border: 0; padding: 0; font-size: 13.5px; line-height: 1.62;
+    word-break: normal; white-space: pre;
+  }
+  .c { color: var(--muted); }
+  .k { color: var(--accent); }
+  .hl { background: var(--warn-soft); border-radius: 3px; padding: 0 2px; }
+  .filename {
+    font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: -12px;
+  }
+
+  /* ---------- side-by-side ---------- */
+  .compare { display: grid; grid-template-columns: 1fr; gap: 20px; }
+  @media (min-width: 900px) { .compare { grid-template-columns: 1fr 1fr; } }
+  .compare > div { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .compare .label {
+    font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); display: flex; align-items: center; gap: 8px;
+  }
+  .compare .label::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .compare .old .label::before { background: var(--deny); }
+  .compare .new .label::before { background: var(--allow); }
+
+  /* ---------- cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; font-size: 15.5px;
+  }
+  .card .who {
+    font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  }
+  .card h3 { margin: 0; font-size: 17px; }
+  .card h3 code { font-size: 0.9em; }
+
+  /* ---------- callouts ---------- */
+  .callout {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    border-radius: 0 var(--radius) var(--radius) 0; padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 10px; font-size: 16px;
+  }
+  .callout.trap { border-color: var(--deny); background: var(--deny-soft); }
+  .callout.ok   { border-color: var(--allow); background: var(--allow-soft); }
+  .callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .callout .t {
+    font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700;
+  }
+  .callout.trap .t { color: var(--deny); }
+  .callout.ok .t   { color: var(--allow); }
+  .callout.warn .t { color: var(--warn); }
+  .callout:not(.trap):not(.ok):not(.warn) .t { color: var(--accent); }
+
+  /* ---------- tables ---------- */
+  .wide { overflow-x: auto; }
+  table { width: 100%; font-size: 15px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); }
+  th {
+    background: var(--surface-2); font-family: var(--f-mono); font-size: 11.5px;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600;
+  }
+  tr:last-child td { border-bottom: 0; }
+  td code { white-space: nowrap; }
+  td.yes { color: var(--allow); font-weight: 600; }
+  td.no  { color: var(--deny);  font-weight: 600; }
+  td.part { color: var(--warn); font-weight: 600; }
+
+  /* ---------- figure ---------- */
+  figure { display: flex; flex-direction: column; gap: 12px; }
+  figure svg {
+    width: 100%; height: auto; display: block;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    font-family: var(--f-mono); font-size: 12.5px;
+  }
+  figcaption { font-size: 14.5px; color: var(--muted); max-width: var(--measure); }
+  .box { fill: var(--surface-2); stroke: var(--line); }
+  .box.app { fill: var(--accent-soft); stroke: var(--accent); }
+  .box.infra { fill: var(--warn-soft); stroke: var(--warn); }
+  .box.ctrl { fill: var(--allow-soft); stroke: var(--allow); }
+  .txt { fill: var(--ink); }
+  .sub { fill: var(--muted); font-size: 11px; }
+  .arrow { stroke: var(--ink); stroke-width: 1.6; fill: none; marker-end: url(#ah); }
+  .arrow.dash { stroke: var(--muted); stroke-dasharray: 4 4; marker-end: url(#ahm); }
+  .ns { fill: none; stroke: var(--line); stroke-dasharray: 6 5; }
+  .nslabel { fill: var(--muted); font-size: 11px; letter-spacing: 0.08em; }
+
+  /* ---------- quiz ---------- */
+  details {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 18px;
+  }
+  details summary { cursor: pointer; font-weight: 600; }
+  details p { margin-top: 10px; font-size: 15.5px; }
+
+  footer { padding-top: 40px; font-size: 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="eyebrow">Lesson 020 · дополнение к домашнему заданию</div>
+  <h1>Ingress против Gateway API: одна задача, два подхода</h1>
+  <p class="deck">Та же связка frontend → backend, те же NetworkPolicy, та же цель «снаружи виден только фронтенд». Меняется только точка входа. Разбираем, что именно меняется и почему.</p>
+  <div class="facts">
+    <span>Ingress: networking.k8s.io/v1</span>
+    <span>Gateway API: gateway.networking.k8s.io/v1</span>
+    <span>Envoy Gateway v1.9.1</span>
+    <span>Minikube + Calico</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Содержание">
+  <ol>
+    <li><a href="#s1">Почему Ingress оказалось мало</a></li>
+    <li><a href="#s2">Ролевая модель: три ресурса вместо одного</a></li>
+    <li><a href="#s3">Путь трафика: что общего, что разное</a></li>
+    <li><a href="#s4">Один и тот же маршрут двумя языками</a></li>
+    <li><a href="#s5">Сопоставление полей</a></li>
+    <li><a href="#s6">Что меняется в NetworkPolicy</a></li>
+    <li><a href="#s7">Статусы: где искать причину поломки</a></li>
+    <li><a href="#s8">Что Gateway API умеет без аннотаций</a></li>
+    <li><a href="#s9">Когда что выбирать</a></li>
+    <li><a href="#s10">Проверь себя</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============================================================ -->
+<section class="step" id="s1">
+  <div class="stepnum">01</div>
+  <div class="body">
+    <h2>Почему Ingress оказалось мало</h2>
+    <p>Ingress появился в Kubernetes 1.1 (2015) и до v1 в 1.19 (2020) шёл в статусе beta. Он решал ровно одну задачу: «HTTP-хост и путь → Service». Всё, что выходило за рамки, приходилось делать через аннотации.</p>
+
+    <div class="cards">
+      <div class="card">
+        <div class="who">Проблема 1</div>
+        <h3>Один объект на всех</h3>
+        <p>Хост, TLS-сертификат, пути и бэкенды лежат в одном ресурсе. Его правит разработчик приложения, хотя сертификат и внешний IP это зона администратора.</p>
+      </div>
+      <div class="card">
+        <div class="who">Проблема 2</div>
+        <h3>Аннотации вместо API</h3>
+        <p>Rewrite, таймауты, canary, routing по заголовкам делаются через <code>nginx.ingress.kubernetes.io/*</code>. Сменил контроллер на Traefik или HAProxy, и всё это перестало работать.</p>
+      </div>
+      <div class="card">
+        <div class="who">Проблема 3</div>
+        <h3>Только HTTP</h3>
+        <p>TCP, UDP, gRPC, TLS passthrough в спецификации Ingress отсутствуют. Каждый контроллер придумывал своё.</p>
+      </div>
+      <div class="card">
+        <div class="who">Проблема 4</div>
+        <h3>Контроллер живёт отдельно</h3>
+        <p>Ingress описывает правила, но не описывает сам балансировщик. Его ставят руками (<code>minikube addons enable ingress</code>), и Kubernetes о нём ничего не знает.</p>
+      </div>
+    </div>
+
+    <p>Gateway API это ответ SIG Network на эти четыре проблемы. Он вышел в GA (v1.0) в октябре 2023, стандартные ресурсы стабильны, и Ingress с этого момента официально считается «замороженным»: новых полей в него не добавляют.</p>
+
+    <div class="callout">
+      <div class="t">Важно</div>
+      <p>Gateway API это <strong>не часть ядра</strong> Kubernetes, а набор CRD (Custom Resource Definitions). В Minikube их нет, пока вы их не поставите. В домашке они приезжают вместе с Envoy Gateway одним <code>kubectl apply --server-side</code>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="step" id="s2">
+  <div class="stepnum">02</div>
+  <div class="body">
+    <h2>Ролевая модель: три ресурса вместо одного</h2>
+    <p>Главная идея Gateway API: разные люди отвечают за разные слои, значит и ресурсы должны быть разные. Каждый слой ссылается на предыдущий по имени.</p>
+
+    <div class="cards">
+      <div class="card">
+        <div class="who">Владелец: провайдер / админ кластера</div>
+        <h3><code>GatewayClass</code></h3>
+        <p>Cluster-scoped. «Гейтвеи этого класса обслуживает вот такой контроллер». Одно поле, которое имеет значение: <code>controllerName</code>. Аналог <code>IngressClass</code>.</p>
+      </div>
+      <div class="card">
+        <div class="who">Владелец: платформенная команда</div>
+        <h3><code>Gateway</code></h3>
+        <p>Namespaced. «Мне нужна точка входа, слушай HTTP на 80 и HTTPS на 443 с таким сертификатом». Контроллер по этому объекту <strong>создаёт реальный прокси</strong>. В Ingress аналога нет.</p>
+      </div>
+      <div class="card">
+        <div class="who">Владелец: разработчик приложения</div>
+        <h3><code>HTTPRoute</code></h3>
+        <p>Namespaced. «Запросы на shop.local/* отправляй в Service frontend:80». Это и есть бывший <code>spec.rules</code> из Ingress, но с нормальной схемой вместо аннотаций.</p>
+      </div>
+    </div>
+
+    <figure>
+      <svg viewBox="0 0 900 300" role="img" aria-label="Три ресурса Gateway API и ссылки между ними">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+          <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor" opacity="0.6"/>
+          </marker>
+        </defs>
+        <!-- GatewayClass -->
+        <rect class="box ctrl" x="40" y="40" width="240" height="70" rx="8"/>
+        <text class="txt" x="60" y="68" font-weight="700">GatewayClass envoy</text>
+        <text class="sub" x="60" y="90">controllerName: gateway.envoyproxy.io/…</text>
+        <text class="nslabel" x="40" y="28">CLUSTER-SCOPED · АДМИН</text>
+
+        <!-- Gateway -->
+        <rect class="box infra" x="330" y="40" width="240" height="70" rx="8"/>
+        <text class="txt" x="350" y="68" font-weight="700">Gateway shop-gateway</text>
+        <text class="sub" x="350" y="90">listeners: [http :80]</text>
+        <text class="nslabel" x="330" y="28">NS SHOP · ПЛАТФОРМА</text>
+
+        <!-- HTTPRoute -->
+        <rect class="box app" x="620" y="40" width="240" height="70" rx="8"/>
+        <text class="txt" x="640" y="68" font-weight="700">HTTPRoute shop-route</text>
+        <text class="sub" x="640" y="90">shop.local /* → frontend:80</text>
+        <text class="nslabel" x="620" y="28">NS SHOP · РАЗРАБОТЧИК</text>
+
+        <!-- refs -->
+        <g style="color: var(--ink)">
+          <path class="arrow" d="M330,75 L282,75"/>
+          <text class="sub" x="284" y="62" text-anchor="middle">gatewayClassName</text>
+          <path class="arrow" d="M620,75 L572,75"/>
+          <text class="sub" x="596" y="62" text-anchor="middle">parentRefs</text>
+        </g>
+
+        <!-- what controller does -->
+        <g style="color: var(--muted)">
+          <path class="arrow dash" d="M450,110 L450,170"/>
+        </g>
+        <rect class="box" x="300" y="170" width="300" height="80" rx="8"/>
+        <text class="txt" x="320" y="196" font-weight="700">Envoy-прокси (создан контроллером)</text>
+        <text class="sub" x="320" y="216">Deployment + Service LoadBalancer</text>
+        <text class="sub" x="320" y="234">namespace envoy-gateway-system</text>
+        <text class="sub" x="462" y="150" text-anchor="middle">контроллер увидел Gateway и поднял</text>
+
+        <!-- service -->
+        <g style="color: var(--ink)">
+          <path class="arrow" d="M740,110 L740,170"/>
+        </g>
+        <rect class="box" x="650" y="170" width="200" height="80" rx="8"/>
+        <text class="txt" x="670" y="196" font-weight="700">Service frontend</text>
+        <text class="sub" x="670" y="216">ClusterIP :80</text>
+        <text class="sub" x="670" y="234">backendRefs</text>
+      </svg>
+      <figcaption>Стрелки сплошные это ссылки по имени в YAML. Пунктирная это действие контроллера: увидел <code>Gateway</code>, создал под с Envoy. Удалишь <code>Gateway</code>, под исчезнет.</figcaption>
+    </figure>
+
+    <div class="callout warn">
+      <div class="t">Ключевое отличие</div>
+      <p><code>Gateway</code> это <strong>заявка на инфраструктуру</strong>, а не описание существующей. В Ingress-мире nginx-controller стоял один на кластер и жил своей жизнью. В Gateway API прокси появляется и исчезает вместе с объектом. Это то же самое, что <code>PersistentVolumeClaim</code> для дисков: описал, что нужно, а провижининг сделал контроллер.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="step" id="s3">
+  <div class="stepnum">03</div>
+  <div class="body">
+    <h2>Путь трафика: что общего, что разное</h2>
+    <p>Пакет от <code>curl</code> до пода фронтенда проходит одни и те же этапы. Разница только в том, кто стоит в роли прокси и в каком namespace он живёт.</p>
+
+    <figure>
+      <svg viewBox="0 0 900 380" role="img" aria-label="Сравнение пути трафика через Ingress и через Gateway API">
+        <defs>
+          <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <!-- row labels -->
+        <text class="nslabel" x="20" y="60">INGRESS</text>
+        <text class="nslabel" x="20" y="240">GATEWAY API</text>
+
+        <!-- ===== row 1: Ingress ===== -->
+        <rect class="ns" x="200" y="30" width="230" height="120" rx="8"/>
+        <text class="nslabel" x="212" y="48">NS INGRESS-NGINX</text>
+        <rect class="ns" x="470" y="30" width="410" height="120" rx="8"/>
+        <text class="nslabel" x="482" y="48">NS SHOP</text>
+
+        <rect class="box" x="90" y="70" width="80" height="50" rx="8"/>
+        <text class="txt" x="130" y="100" text-anchor="middle">curl</text>
+
+        <rect class="box infra" x="210" y="62" width="210" height="66" rx="8"/>
+        <text class="txt" x="315" y="88" text-anchor="middle" font-weight="700">nginx-controller</text>
+        <text class="sub" x="315" y="108" text-anchor="middle">аддон, один на кластер</text>
+
+        <rect class="box app" x="490" y="62" width="150" height="66" rx="8"/>
+        <text class="txt" x="565" y="88" text-anchor="middle" font-weight="700">Ingress</text>
+        <text class="sub" x="565" y="108" text-anchor="middle">rules: host+path</text>
+
+        <rect class="box" x="700" y="62" width="160" height="66" rx="8"/>
+        <text class="txt" x="780" y="88" text-anchor="middle" font-weight="700">Pod frontend</text>
+        <text class="sub" x="780" y="108" text-anchor="middle">app=frontend :80</text>
+
+        <g style="color: var(--ink)">
+          <path class="arrow" style="marker-end:url(#ah2)" d="M170,95 L218,95"/>
+          <path class="arrow" style="marker-end:url(#ah2)" d="M420,95 L698,95"/>
+        </g>
+        <g style="color: var(--muted)">
+          <path class="arrow dash" style="marker-end:url(#ah2)" d="M565,62 L565,54 L315,54 L315,60"/>
+        </g>
+        <text class="sub" x="440" y="170" text-anchor="middle">nginx-controller читает Ingress</text>
+
+        <!-- ===== row 2: Gateway ===== -->
+        <rect class="ns" x="200" y="210" width="230" height="140" rx="8"/>
+        <text class="nslabel" x="212" y="228">NS ENVOY-GATEWAY-SYSTEM</text>
+        <rect class="ns" x="470" y="210" width="410" height="140" rx="8"/>
+        <text class="nslabel" x="482" y="228">NS SHOP</text>
+
+        <rect class="box" x="90" y="260" width="80" height="50" rx="8"/>
+        <text class="txt" x="130" y="290" text-anchor="middle">curl</text>
+
+        <rect class="box infra" x="210" y="250" width="210" height="66" rx="8"/>
+        <text class="txt" x="315" y="276" text-anchor="middle" font-weight="700">Envoy-прокси</text>
+        <text class="sub" x="315" y="296" text-anchor="middle">поднят под shop-gateway</text>
+
+        <rect class="box infra" x="490" y="240" width="150" height="46" rx="8"/>
+        <text class="txt" x="565" y="268" text-anchor="middle" font-weight="700">Gateway</text>
+        <rect class="box app" x="490" y="294" width="150" height="46" rx="8"/>
+        <text class="txt" x="565" y="322" text-anchor="middle" font-weight="700">HTTPRoute</text>
+
+        <rect class="box" x="700" y="250" width="160" height="66" rx="8"/>
+        <text class="txt" x="780" y="276" text-anchor="middle" font-weight="700">Pod frontend</text>
+        <text class="sub" x="780" y="296" text-anchor="middle">app=frontend :80</text>
+
+        <g style="color: var(--ink)">
+          <path class="arrow" style="marker-end:url(#ah2)" d="M170,285 L218,285"/>
+          <path class="arrow" style="marker-end:url(#ah2)" d="M420,283 L698,283"/>
+        </g>
+        <g style="color: var(--muted)">
+          <path class="arrow dash" style="marker-end:url(#ah2)" d="M490,263 L450,263 L450,258 L422,258"/>
+          <path class="arrow dash" style="marker-end:url(#ah2)" d="M490,317 L450,317 L450,308 L422,308"/>
+        </g>
+        <text class="sub" x="446" y="368" text-anchor="middle">создаёт прокси + читает маршруты</text>
+      </svg>
+      <figcaption>В обоих случаях прокси ходит к поду фронтенда <strong>напрямую по Pod IP</strong>, минуя ClusterIP. Поэтому NetworkPolicy на фронтенде должна пускать именно поды прокси, а не «Service». Отличие только в имени namespace и метках этих подов.</figcaption>
+    </figure>
+
+    <div class="wide">
+      <table>
+        <thead><tr><th>Этап</th><th>Ingress</th><th>Gateway API</th></tr></thead>
+        <tbody>
+          <tr><td>Кто принимает пакет снаружи</td><td>под <code>ingress-nginx-controller</code></td><td>под <code>envoy-shop-shop-gateway-*</code></td></tr>
+          <tr><td>В каком namespace</td><td><code>ingress-nginx</code></td><td><code>envoy-gateway-system</code></td></tr>
+          <tr><td>Откуда прокси берёт правила</td><td>читает все <code>Ingress</code> с классом <code>nginx</code></td><td>читает <code>HTTPRoute</code>, прицепленные к его <code>Gateway</code></td></tr>
+          <tr><td>Как прокси выставлен наружу</td><td>NodePort (аддон minikube)</td><td>Service LoadBalancer (нужен <code>minikube tunnel</code> или port-forward)</td></tr>
+          <tr><td>Куда уходит пакет</td><td>Pod IP фронтенда, порт 80</td><td>Pod IP фронтенда, порт 80</td></tr>
+          <tr><td>Что дальше</td><td colspan="2">одинаково: nginx во фронтенде → ClusterIP <code>backend</code> → Pod backend :8080</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="step" id="s4">
+  <div class="stepnum">04</div>
+  <div class="body">
+    <h2>Один и тот же маршрут двумя языками</h2>
+    <p>Слева файл из прошлой домашки, справа его замена. Обратите внимание: то, что было одним объектом, стало тремя, и каждый короче.</p>
+
+    <div class="compare">
+      <div class="old">
+        <div class="label">Ingress · 1 файл, 1 объект</div>
+        <div class="filename">k8s/20-ingress.yaml</div>
+<pre><code><span class="k">apiVersion:</span> networking.k8s.io/v1
+<span class="k">kind:</span> Ingress
+<span class="k">metadata:</span>
+  name: shop-ingress
+  namespace: shop
+<span class="k">spec:</span>
+  <span class="hl">ingressClassName: nginx</span>
+  rules:
+    - <span class="hl">host: shop.local</span>
+      http:
+        paths:
+          - <span class="hl">path: /</span>
+            <span class="hl">pathType: Prefix</span>
+            backend:
+              service:
+                <span class="hl">name: frontend</span>
+                port:
+                  <span class="hl">number: 80</span></code></pre>
+        <p><em>Хост, путь, бэкенд и класс контроллера в одном месте. Кто отвечает за внешний IP и TLS, из файла не видно.</em></p>
+      </div>
+
+      <div class="new">
+        <div class="label">Gateway API · 3 файла, 3 объекта</div>
+        <div class="filename">k8s-gateway/20-gatewayclass.yaml</div>
+<pre><code><span class="k">apiVersion:</span> gateway.networking.k8s.io/v1
+<span class="k">kind:</span> GatewayClass
+<span class="k">metadata:</span>
+  name: envoy            <span class="c"># без namespace</span>
+<span class="k">spec:</span>
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller</code></pre>
+
+        <div class="filename">k8s-gateway/21-gateway.yaml</div>
+<pre><code><span class="k">apiVersion:</span> gateway.networking.k8s.io/v1
+<span class="k">kind:</span> Gateway
+<span class="k">metadata:</span>
+  name: shop-gateway
+  namespace: shop
+<span class="k">spec:</span>
+  <span class="hl">gatewayClassName: envoy</span>
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same     <span class="c"># маршруты только из ns shop</span></code></pre>
+
+        <div class="filename">k8s-gateway/22-httproute.yaml</div>
+<pre><code><span class="k">apiVersion:</span> gateway.networking.k8s.io/v1
+<span class="k">kind:</span> HTTPRoute
+<span class="k">metadata:</span>
+  name: shop-route
+  namespace: shop
+<span class="k">spec:</span>
+  parentRefs:
+    - name: shop-gateway
+  <span class="hl">hostnames: [shop.local]</span>
+  rules:
+    - matches:
+        - path:
+            <span class="hl">type: PathPrefix</span>
+            <span class="hl">value: /</span>
+      backendRefs:
+        - <span class="hl">name: frontend</span>
+          <span class="hl">port: 80</span></code></pre>
+      </div>
+    </div>
+
+    <div class="callout ok">
+      <div class="t">Что осталось неизменным</div>
+      <p>Подсвеченные строки это одни и те же пять фактов: класс контроллера, хост, тип и значение пути, имя и порт Service. Логика маршрутизации не поменялась ни на байт. Изменилась только упаковка.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="step" id="s5">
+  <div class="stepnum">05</div>
+  <div class="body">
+    <h2>Сопоставление полей</h2>
+    <p>Таблица для миграции: берёшь поле из Ingress, находишь, куда оно переехало.</p>
+    <div class="wide">
+      <table>
+        <thead><tr><th>Ingress</th><th>Gateway API</th><th>Комментарий</th></tr></thead>
+        <tbody>
+          <tr><td><code>kind: IngressClass</code></td><td><code>kind: GatewayClass</code></td><td>оба cluster-scoped, оба указывают на контроллер</td></tr>
+          <tr><td><code>spec.ingressClassName</code></td><td><code>Gateway.spec.gatewayClassName</code></td><td>переехало из маршрута на уровень выше</td></tr>
+          <tr><td>нет аналога</td><td><code>Gateway.spec.listeners[]</code></td><td>порт, протокол, hostname, TLS, кому разрешено цепляться</td></tr>
+          <tr><td><code>spec.rules[].host</code></td><td><code>HTTPRoute.spec.hostnames[]</code></td><td>список, а не одно значение; может пересекаться с <code>listener.hostname</code></td></tr>
+          <tr><td><code>paths[].path</code> + <code>pathType: Prefix</code></td><td><code>matches[].path: {type: PathPrefix, value}</code></td><td><code>Exact</code> → <code>Exact</code>, <code>ImplementationSpecific</code> → <code>RegularExpression</code></td></tr>
+          <tr><td><code>backend.service.name/port.number</code></td><td><code>backendRefs[].name/port</code></td><td>можно несколько с <code>weight</code>, это canary без аннотаций</td></tr>
+          <tr><td><code>spec.tls[]</code></td><td><code>listeners[].tls.certificateRefs</code></td><td>сертификат теперь у Gateway, не у маршрута</td></tr>
+          <tr><td><code>spec.defaultBackend</code></td><td><code>HTTPRoute</code> с <code>PathPrefix: /</code> и без hostnames</td><td>отдельного поля нет</td></tr>
+          <tr><td>аннотация <code>rewrite-target</code></td><td><code>filters[].urlRewrite</code></td><td>стандартное поле</td></tr>
+          <tr><td>аннотация <code>canary-weight</code></td><td><code>backendRefs[].weight</code></td><td>стандартное поле</td></tr>
+          <tr><td>аннотация <code>proxy-set-header</code></td><td><code>filters[].requestHeaderModifier</code></td><td>стандартное поле</td></tr>
+          <tr><td>аннотация <code>permanent-redirect</code></td><td><code>filters[].requestRedirect</code></td><td>стандартное поле</td></tr>
+          <tr><td>под контроллера в <code>ingress-nginx</code></td><td>под прокси в <code>envoy-gateway-system</code></td><td>важно для NetworkPolicy, см. раздел 06</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Для автоматической миграции есть утилита <code>ingress2gateway</code> от SIG Network: читает Ingress из кластера и печатает эквивалентные Gateway и HTTPRoute.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="step" id="s6">
+  <div class="stepnum">06</div>
+  <div class="body">
+    <h2>Что меняется в NetworkPolicy</h2>
+    <p>Из четырёх политик прошлой домашки меняется <strong>одна</strong>: разрешение входа во фронтенд. Причина на схеме в разделе 03: прокси ходит к поду напрямую, значит политика должна пускать конкретные поды прокси из конкретного namespace.</p>
+
+    <div class="compare">
+      <div class="old">
+        <div class="label">Было: источник ingress-nginx</div>
+        <div class="filename">k8s/31-netpol-frontend.yaml</div>
+<pre><code>ingress:
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: <span class="hl">ingress-nginx</span>
+    ports:
+      - protocol: TCP
+        port: 80</code></pre>
+        <p><em>Пускаем всё из namespace контроллера. Контроллер там один, этого достаточно.</em></p>
+      </div>
+      <div class="new">
+        <div class="label">Стало: источник Envoy-прокси нашего Gateway</div>
+        <div class="filename">k8s-gateway/31-netpol-frontend.yaml</div>
+<pre><code>ingress:
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: <span class="hl">envoy-gateway-system</span>
+        podSelector:
+          matchLabels:
+            <span class="hl">gateway.envoyproxy.io/owning-gateway-namespace: shop</span>
+            <span class="hl">gateway.envoyproxy.io/owning-gateway-name: shop-gateway</span>
+    ports:
+      - protocol: TCP
+        port: 80</code></pre>
+        <p><em>В namespace прокси может жить несколько Gateway разных команд. Поэтому сужаем до подов, принадлежащих именно нашему.</em></p>
+      </div>
+    </div>
+
+    <div class="callout trap">
+      <div class="t">Ловушка</div>
+      <p><code>namespaceSelector</code> и <code>podSelector</code> под <strong>одним</strong> дефисом это логическое И: «поды с такими метками в таком namespace». Под <strong>разными</strong> дефисами это ИЛИ: «любой под этого namespace, плюс любой под с такими метками из своего namespace». Вторая запись случайно откроет фронтенд шире, чем нужно.</p>
+    </div>
+
+    <h3>Что не меняется и почему</h3>
+    <ul>
+      <li><strong>default-deny-all.</strong> Живёт в <code>shop</code>, а прокси в другом namespace. На него политика не действует, ему ничего разрешать не нужно.</li>
+      <li><strong>frontend-egress.</strong> Фронтенд по-прежнему ходит только в backend:8080 и DNS. Кто привёл к нему запрос, для исходящих правил не важно.</li>
+      <li><strong>allow-frontend-to-backend.</strong> Пускает только <code>app=frontend</code>. Envoy-прокси под этот селектор не попадает, как раньше не попадал nginx-controller. Именно это второй барьер: даже если кто-то опубликует бэкенд через HTTPRoute, политика его не пустит.</li>
+      <li><strong>backend-egress-dns-only.</strong> Без изменений.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="step" id="s7">
+  <div class="stepnum">07</div>
+  <div class="body">
+    <h2>Статусы: где искать причину поломки</h2>
+    <p>У Ingress статус был почти пустой: адрес балансировщика и всё. Если правило не применилось, узнать об этом можно было только из логов контроллера. В Gateway API каждый ресурс носит подробный <code>status.conditions</code>.</p>
+
+    <div class="wide">
+      <table>
+        <thead><tr><th>Ресурс</th><th>Condition</th><th>Что значит False</th></tr></thead>
+        <tbody>
+          <tr><td><code>GatewayClass</code></td><td><code>Accepted</code></td><td>ни один контроллер не заявил такой <code>controllerName</code></td></tr>
+          <tr><td rowspan="3"><code>Gateway</code></td><td><code>Accepted</code></td><td>класс не найден или не принят</td></tr>
+          <tr><td><code>Programmed</code></td><td>контроллер не смог поднять прокси или сгенерировать конфиг</td></tr>
+          <tr><td><code>listeners[].attachedRoutes</code></td><td>0 означает: ни один маршрут не прицепился (не тот namespace, hostname не пересёкся)</td></tr>
+          <tr><td rowspan="2"><code>HTTPRoute</code> (в <code>status.parents[]</code>)</td><td><code>Accepted</code></td><td>Gateway отверг маршрут: <code>allowedRoutes</code> не пускает, hostname не совпал с listener</td></tr>
+          <tr><td><code>ResolvedRefs</code></td><td><code>backendRefs</code> указывает на несуществующий Service, порт или на Service в чужом namespace без <code>ReferenceGrant</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="filename">Команды</div>
+<pre><code>kubectl get gatewayclass                              <span class="c"># колонка ACCEPTED</span>
+kubectl -n shop get gateway                           <span class="c"># колонки ADDRESS, PROGRAMMED</span>
+kubectl -n shop describe gateway shop-gateway         <span class="c"># Listeners → Attached Routes</span>
+kubectl -n shop describe httproute shop-route         <span class="c"># Parents → Conditions</span></code></pre>
+
+    <div class="callout">
+      <div class="t">Порядок отладки</div>
+      <p>Сверху вниз: сначала <code>GatewayClass.Accepted</code>, потом <code>Gateway.Programmed</code>, потом <code>HTTPRoute.Accepted</code> и <code>ResolvedRefs</code>. Если все четыре True, а <code>curl</code> отдаёт 503 или висит, проблема ниже уровня маршрутизации: NetworkPolicy или сам под.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="step" id="s8">
+  <div class="stepnum">08</div>
+  <div class="body">
+    <h2>Что Gateway API умеет без аннотаций</h2>
+    <p>В домашке используется минимум. Но стоит знать, что уже есть в стандартной спецификации, потому что именно ради этого API и затевался.</p>
+
+    <div class="wide">
+      <table>
+        <thead><tr><th>Возможность</th><th>Ingress</th><th>Gateway API</th></tr></thead>
+        <tbody>
+          <tr><td>Маршрут по хосту и пути</td><td class="yes">да</td><td class="yes">да</td></tr>
+          <tr><td>Маршрут по заголовку или query-параметру</td><td class="no">аннотации</td><td class="yes"><code>matches[].headers / queryParams</code></td></tr>
+          <tr><td>Маршрут по HTTP-методу</td><td class="no">нет</td><td class="yes"><code>matches[].method</code></td></tr>
+          <tr><td>Взвешенное распределение (canary)</td><td class="no">аннотации</td><td class="yes"><code>backendRefs[].weight</code></td></tr>
+          <tr><td>Rewrite, redirect, изменение заголовков</td><td class="no">аннотации</td><td class="yes"><code>filters[]</code></td></tr>
+          <tr><td>Зеркалирование трафика</td><td class="no">нет</td><td class="yes"><code>filters[].requestMirror</code></td></tr>
+          <tr><td>gRPC-маршруты по сервису и методу</td><td class="no">нет</td><td class="yes"><code>GRPCRoute</code></td></tr>
+          <tr><td>TCP / UDP / TLS passthrough</td><td class="no">нет</td><td class="part">experimental-канал</td></tr>
+          <tr><td>Один балансировщик на несколько namespace</td><td class="part">зависит от контроллера</td><td class="yes"><code>allowedRoutes</code> + <code>ReferenceGrant</code></td></tr>
+          <tr><td>Кто владеет TLS-сертификатом</td><td class="part">разработчик, в том же файле</td><td class="yes">платформа, в <code>Gateway</code></td></tr>
+          <tr><td>Переносимость между контроллерами</td><td class="part">только базовый host+path</td><td class="yes">всё стандартное поле работает везде</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="filename">Пример: canary 90/10 и заголовок в одном HTTPRoute</div>
+<pre><code><span class="k">rules:</span>
+  - matches:
+      - path: { type: PathPrefix, value: / }
+    filters:
+      - type: RequestHeaderModifier
+        requestHeaderModifier:
+          add:
+            - name: X-Env
+              value: lesson020
+    backendRefs:
+      - { name: frontend,    port: 80, weight: 90 }
+      - { name: frontend-v2, port: 80, weight: 10 }</code></pre>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="step" id="s9">
+  <div class="stepnum">09</div>
+  <div class="body">
+    <h2>Когда что выбирать</h2>
+
+    <div class="compare">
+      <div class="old">
+        <div class="label">Ingress пока уместен</div>
+        <ul>
+          <li>Кластер уже живёт на ingress-nginx, и всё, что нужно, это host + path.</li>
+          <li>Helm-чарты сторонних приложений генерируют только Ingress, а вы их не правите.</li>
+          <li>Managed-платформа провайдера ещё не поддерживает Gateway API.</li>
+        </ul>
+      </div>
+      <div class="new">
+        <div class="label">Gateway API стоит брать</div>
+        <ul>
+          <li>Новый кластер или новая точка входа: писать новое на замороженном API нет смысла.</li>
+          <li>Нужны canary, header-routing, gRPC, mirror без привязки к одному контроллеру.</li>
+          <li>Несколько команд делят один балансировщик: платформа владеет <code>Gateway</code>, команды владеют своими <code>HTTPRoute</code>.</li>
+          <li>Service mesh: Istio, Linkerd и Cilium используют те же ресурсы для east-west трафика.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <div class="t">Про контроллеры</div>
+      <p><code>ingress-nginx</code> Gateway API не поддерживает и не планирует. Поэтому в домашке контроллер заменён на Envoy Gateway. Другие варианты, реализующие Gateway API: NGINX Gateway Fabric (это другой проект, не ingress-nginx), Istio, Cilium, Kong, Traefik v3, а также облачные: GKE Gateway, AWS Load Balancer Controller, Azure Application Gateway for Containers.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="step" id="s10">
+  <div class="stepnum">10</div>
+  <div class="body">
+    <h2>Проверь себя</h2>
+    <p>Ответы под спойлерами. Сначала подумайте, потом раскрывайте.</p>
+
+    <details>
+      <summary>1. Удалили объект Gateway. Что произойдёт с подом Envoy-прокси и с HTTPRoute?</summary>
+      <p>Контроллер удалит Deployment и Service прокси: они существовали только ради этого Gateway. HTTPRoute останется в кластере, но в его статусе <code>Accepted</code> станет False с причиной, что родитель не найден. Трафик снаружи ходить перестанет.</p>
+    </details>
+    <details>
+      <summary>2. Почему в NetworkPolicy фронтенда нельзя написать «разрешить от Service envoy»?</summary>
+      <p>NetworkPolicy работает на уровне подов и IP, а не Service. Прокси ходит на Pod IP фронтенда напрямую, а Service это только запись в kube-proxy для исходящих. Селектор источника всегда описывает поды: через <code>podSelector</code>, <code>namespaceSelector</code> или <code>ipBlock</code>.</p>
+    </details>
+    <details>
+      <summary>3. HTTPRoute создан в namespace default, Gateway в shop с allowedRoutes.from: Same. Что увидим?</summary>
+      <p><code>HTTPRoute.status.parents[].conditions.Accepted = False</code> с причиной <code>NotAllowedByListeners</code>. У Gateway <code>attachedRoutes: 0</code>. Чтобы разрешить, у listener ставят <code>from: All</code> или <code>from: Selector</code> с метками namespace.</p>
+    </details>
+    <details>
+      <summary>4. Разработчик добавил HTTPRoute на backend.local → Service backend. Бэкенд стал доступен снаружи?</summary>
+      <p>Нет. Envoy примет маршрут (<code>ResolvedRefs=True</code>) и попробует соединиться с подом бэкенда, но политика <code>allow-frontend-to-backend</code> пускает только поды с меткой <code>app=frontend</code>. Прокси получит таймаут, клиент увидит 503 или 504. Это и есть смысл двух независимых уровней защиты.</p>
+    </details>
+    <details>
+      <summary>5. Чем GatewayClass отличается от IngressClass по сути, если оба указывают на контроллер?</summary>
+      <p>По сути почти ничем: оба cluster-scoped, оба содержат имя контроллера. Разница в том, что на IngressClass ссылается сам маршрут (Ingress), а на GatewayClass ссылается Gateway, то есть инфраструктурный объект. Разработчик, пишущий HTTPRoute, о классе вообще не знает.</p>
+    </details>
+    <details>
+      <summary>6. curl -H "Host: shop.local" отдаёт 404. Какие два места проверить первыми?</summary>
+      <p>Сначала <code>describe httproute</code>: маршрут должен быть <code>Accepted=True</code> и <code>ResolvedRefs=True</code>. Потом <code>hostnames</code> в HTTPRoute: 404 от Envoy означает, что ни один маршрут не совпал по хосту и пути. NetworkPolicy тут ни при чём: она дала бы таймаут или 503, а не 404.</p>
+    </details>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>Источники: <a href="https://kubernetes.io/docs/concepts/services-networking/gateway/">kubernetes.io · Gateway API</a>, <a href="https://gateway-api.sigs.k8s.io/">gateway-api.sigs.k8s.io</a>, <a href="https://gateway.envoyproxy.io/">gateway.envoyproxy.io</a>. Практическая часть в файле README.md рядом.</p>
+</footer>
+
+</div>
+</body>
+</html>

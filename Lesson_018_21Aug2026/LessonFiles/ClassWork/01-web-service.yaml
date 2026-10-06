@@ -1,0 +1,22 @@
+# ClusterIP-сервис перед деплойментом web.
+# Получает адрес из service CIDR (10.96.0.0/12) — в отличие от подов,
+# которые получают адреса из pod CIDR (10.244.0.0/16) через Calico IPAM.
+#
+# Императивный аналог:
+#   kubectl expose deployment web --port=80
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: default
+  labels:
+    app: web
+spec:
+  type: ClusterIP
+  selector:
+    app: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP

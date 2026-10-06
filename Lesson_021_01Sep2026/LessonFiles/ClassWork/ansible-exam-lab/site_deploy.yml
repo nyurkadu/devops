@@ -1,0 +1,27 @@
+---
+- import_playbook: maintenance_check.yml
+
+- import_playbook: deploy_db_credentials.yml
+
+- name: Zero-downtime rolling deployment
+  hosts: webservers
+  become: true
+  serial: 1
+
+  pre_tasks:
+    - name: Announce removal from load balancer
+      debug:
+        msg: "Removing {{ inventory_hostname }} from service load balancer..."
+
+  roles:
+    - webapp
+
+  post_tasks:
+    - name: Verify web service health
+      uri:
+        url: "http://localhost:{{ app_port | default(80) }}"
+        status_code: 200
+
+    - name: Announce return to load balancer
+      debug:
+        msg: "Re-adding {{ inventory_hostname }} back to load balancer..."

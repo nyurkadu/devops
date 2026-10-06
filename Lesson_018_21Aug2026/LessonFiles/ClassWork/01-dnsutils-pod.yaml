@@ -1,0 +1,28 @@
+# Под для проверки DNS с корректным кодом возврата nslookup.
+# busybox-версия nslookup возвращает exit code 1 даже при успешном резолве
+# (не может обратно разрезолвить адрес DNS-сервера), поэтому берём agnhost.
+#
+# ВАЖНО: аргумент именно pause, а не sleep 3600.
+# entrypoint образа agnhost — собственный бинарь с набором подкоманд,
+# команды sleep у него нет, под падает с: unknown command "sleep" for "app"
+#
+# Императивный аналог:
+#   kubectl run dnsutils --image=registry.k8s.io/e2e-test-images/agnhost:2.39 --restart=Never -- pause
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dnsutils
+  namespace: default
+  labels:
+    run: dnsutils
+    role: client
+spec:
+  restartPolicy: Never
+  containers:
+    - name: dnsutils
+      image: registry.k8s.io/e2e-test-images/agnhost:2.39
+      args: ["pause"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi

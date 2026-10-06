@@ -1,0 +1,18 @@
+---
+- name: Install Apache web server
+  hosts: webservers
+  become: true
+
+  tasks:
+    - name: Install apache2 package
+      community.general.apk:
+        name: apache2
+        state: present
+        update_cache: true
+
+    - name: Ensure /var/www/html exists (docroot expected by web_deploy.yml)
+      file:
+        path: /var/www/html
+        state: directory
+        owner: apache
+        group: apache

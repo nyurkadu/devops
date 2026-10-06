@@ -1,0 +1,1717 @@
+<title>Анатомия кластера — манифесты</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+
+<style>
+:root{
+  --paper:#EFF1F1;
+  --surface:#F9FAFA;
+  --surface-2:#E5E9EA;
+  --ink:#161A1D;
+  --muted:#5B666E;
+  --wire:#D0D6D8;
+  --wire-soft:#DFE4E5;
+  --logic:#1F5C8B;
+  --logic-wash:#DFE9F1;
+  --phys:#9C5E14;
+  --phys-wash:#F1E6D5;
+  --term-bg:#12171A;
+  --term-fg:#CFD8DC;
+  --term-dim:#7E8D95;
+  --term-accent:#8FBFE0;
+  --term-phys:#E0A75B;
+  --out-bg:#E7EAEB;
+  --out-fg:#2E383E;
+  --shadow:0 1px 2px rgba(22,26,29,.06), 0 8px 24px -16px rgba(22,26,29,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0F1214;
+    --surface:#171B1E;
+    --surface-2:#1F2529;
+    --ink:#E2E6E8;
+    --muted:#8D979E;
+    --wire:#2A3236;
+    --wire-soft:#212829;
+    --logic:#6FB0DC;
+    --logic-wash:#152730;
+    --phys:#D9A055;
+    --phys-wash:#2A2115;
+    --term-bg:#0A0D0F;
+    --term-fg:#CFD8DC;
+    --term-dim:#6C7A81;
+    --term-accent:#8FBFE0;
+    --term-phys:#E0A75B;
+    --out-bg:#14181B;
+    --out-fg:#AEB8BD;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0F1214;
+  --surface:#171B1E;
+  --surface-2:#1F2529;
+  --ink:#E2E6E8;
+  --muted:#8D979E;
+  --wire:#2A3236;
+  --wire-soft:#212829;
+  --logic:#6FB0DC;
+  --logic-wash:#152730;
+  --phys:#D9A055;
+  --phys-wash:#2A2115;
+  --term-bg:#0A0D0F;
+  --term-fg:#CFD8DC;
+  --term-dim:#6C7A81;
+  --term-accent:#8FBFE0;
+  --term-phys:#E0A75B;
+  --out-bg:#14181B;
+  --out-fg:#AEB8BD;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Serif",Georgia,"Times New Roman",serif;
+  font-size:17px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{
+  font-family:"IBM Plex Sans Condensed","Arial Narrow",Arial,sans-serif;
+  font-weight:600;
+  text-wrap:balance;
+  margin:0;
+  letter-spacing:.005em;
+}
+code,kbd,pre,.mono{font-family:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace}
+
+/* ---------- shell ---------- */
+.shell{width:100%;padding:0 clamp(20px,3.2vw,64px) 96px;display:block}
+.col{width:100%}
+.wide{width:100%}
+
+/* ---------- masthead ---------- */
+.mast{
+  border-bottom:1px solid var(--wire);
+  padding:56px 0 34px;
+  margin-bottom:48px;
+}
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:11.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);
+}
+.mast h1{
+  font-size:clamp(38px,6.4vw,68px);
+  line-height:1.02;
+  letter-spacing:-.015em;
+  margin:14px 0 0;
+}
+.mast .sub{
+  font-size:19px;color:var(--muted);max-width:62ch;margin:18px 0 0;
+}
+.mast .strip{
+  display:flex;flex-wrap:wrap;gap:8px;margin-top:26px;
+}
+.chip{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;
+  border:1px solid var(--wire);border-radius:2px;
+  padding:5px 9px;color:var(--muted);background:var(--surface);
+}
+.chip b{color:var(--ink);font-weight:500}
+
+/* ---------- layout with rail ---------- */
+/* ВАЖНО: базовое состояние объявляем ДО медиазапроса.
+   Если поставить его после, оно перебьёт display:block из медиазапроса
+   (одинаковая специфичность — побеждает то, что ниже), панель исчезнет,
+   а <main> уедет в первую колонку сетки шириной 232px. */
+.rail{display:none;font-family:"IBM Plex Sans Condensed",Arial,sans-serif;font-size:14px}
+.body-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+@media (min-width:1120px){
+  .body-grid{grid-template-columns:232px minmax(0,1fr);gap:clamp(40px,3.5vw,72px);align-items:start}
+  .rail{display:block;position:sticky;top:24px;max-height:calc(100vh - 48px);overflow-y:auto}
+}
+.rail .rail-t{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--muted);padding-bottom:10px;border-bottom:1px solid var(--wire);
+}
+.rail ol{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
+.rail a{
+  display:flex;gap:10px;text-decoration:none;color:var(--muted);
+  padding:5px 8px;border-radius:2px;border-left:2px solid transparent;
+}
+.rail a:hover{color:var(--ink);background:var(--surface);border-left-color:var(--logic)}
+.rail a .n{font-family:"IBM Plex Mono",monospace;font-size:11px;opacity:.7;padding-top:2px}
+
+/* ---------- sections ---------- */
+section{padding:56px 0;border-top:1px solid var(--wire-soft)}
+section:first-of-type{border-top:none;padding-top:0}
+.sec-head{display:flex;gap:18px;align-items:baseline;margin-bottom:8px}
+.sec-num{
+  font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:500;
+  color:var(--logic);padding-top:6px;flex:none;
+}
+h2{font-size:clamp(27px,3.4vw,36px);line-height:1.08;letter-spacing:-.01em}
+h2 .en{
+  display:block;font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:400;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:8px;
+}
+h3{font-size:20px;margin:36px 0 10px}
+h4{font-size:15px;margin:24px 0 6px;font-family:"IBM Plex Mono",monospace;font-weight:500;
+   letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+p{margin:0 0 16px}
+p+p{margin-top:-2px}
+a{color:var(--logic)}
+strong{font-weight:600}
+em{font-style:italic}
+ul,ol{margin:0 0 18px;padding-left:22px}
+li{margin-bottom:7px}
+li::marker{color:var(--muted)}
+.lead{font-size:19px;color:var(--muted)}
+p code,li code,td code,.lead code{
+  font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:2px;
+  border:1px solid var(--wire-soft);
+}
+
+/* ---------- the two-track device ---------- */
+.tracks{display:grid;grid-template-columns:1fr;gap:1px;background:var(--wire);
+        border:1px solid var(--wire);border-radius:3px;margin:26px 0 30px;overflow:hidden}
+@media (min-width:760px){.tracks{grid-template-columns:1fr 1fr}}
+.track{background:var(--surface);padding:20px 22px 18px}
+.track > .lbl{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
+  letter-spacing:.15em;text-transform:uppercase;display:flex;align-items:center;gap:8px;
+  margin-bottom:12px;
+}
+.track > .lbl::before{content:"";width:22px;height:2px;flex:none}
+.track.t-logic > .lbl{color:var(--logic)}
+.track.t-logic > .lbl::before{background:var(--logic)}
+.track.t-phys > .lbl{color:var(--phys)}
+.track.t-phys > .lbl::before{background:var(--phys)}
+.track p{font-size:15.5px;line-height:1.6;margin-bottom:11px}
+.track p:last-child{margin-bottom:0}
+.track ul{font-size:15.5px;line-height:1.55;margin-bottom:0;padding-left:18px}
+
+/* ---------- terminal ---------- */
+.term{margin:20px 0 8px;border-radius:3px;overflow:hidden;border:1px solid var(--wire);box-shadow:var(--shadow)}
+.term-head{
+  background:var(--surface-2);color:var(--muted);
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  padding:7px 14px;border-bottom:1px solid var(--wire);display:flex;justify-content:space-between;gap:12px;
+}
+.term-head .tag{color:var(--phys)}
+.term pre{
+  margin:0;background:var(--term-bg);color:var(--term-fg);
+  padding:16px 18px;overflow-x:auto;font-size:13.5px;line-height:1.72;
+}
+.term .c{color:var(--term-dim)}
+.term .k{color:var(--term-accent)}
+.term .v{color:var(--term-phys)}
+.out{margin:0 0 24px;border:1px solid var(--wire);border-top:none;border-radius:0 0 3px 3px;
+     background:var(--out-bg);color:var(--out-fg);overflow:hidden}
+.out .oh{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);padding:7px 14px;border-bottom:1px dashed var(--wire);
+}
+.out pre{margin:0;padding:14px 18px;overflow-x:auto;font-size:13px;line-height:1.6;
+         font-family:"IBM Plex Mono",monospace}
+.term + .out{margin-top:-9px;border-radius:0 0 3px 3px}
+
+/* ---------- callouts ---------- */
+.note{
+  border-left:2px solid var(--logic);background:var(--logic-wash);
+  padding:16px 20px;margin:26px 0;border-radius:0 3px 3px 0;font-size:15.5px;line-height:1.6;
+}
+.note.phys{border-left-color:var(--phys);background:var(--phys-wash)}
+.note .nl{
+  display:block;font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
+  letter-spacing:.15em;text-transform:uppercase;color:var(--logic);margin-bottom:7px;
+}
+.note.phys .nl{color:var(--phys)}
+.note p:last-child{margin-bottom:0}
+
+/* ---------- figures ---------- */
+figure{margin:34px 0;padding:0}
+/* схемы тянутся вместе со страницей, но не раздуваются до карикатурного
+   размера на широких мониторах — у них есть своя оптимальная величина */
+figure svg{display:block;width:100%;max-width:1360px;height:auto;margin:0 auto;color:var(--ink)}
+.fig-frame{background:var(--surface);border:1px solid var(--wire);border-radius:3px;
+           padding:clamp(18px,2vw,32px);overflow-x:auto}
+figcaption{font-size:14px;color:var(--muted);margin-top:12px;line-height:1.5;max-width:70ch}
+figcaption b{color:var(--ink);font-weight:600}
+.d-box{fill:var(--surface);stroke:var(--wire);stroke-width:1.5}
+.d-box-logic{fill:var(--logic-wash);stroke:var(--logic);stroke-width:1.5}
+.d-box-phys{fill:var(--phys-wash);stroke:var(--phys);stroke-width:1.5}
+.d-frame{fill:none;stroke:var(--wire);stroke-width:1.5;stroke-dasharray:none}
+.d-t{font-family:"IBM Plex Sans Condensed",Arial,sans-serif;font-size:13px;fill:var(--ink)}
+.d-t.sm{font-size:11px;fill:var(--muted)}
+.d-m{font-family:"IBM Plex Mono",monospace;font-size:10.5px;fill:var(--muted);letter-spacing:.04em}
+.d-m.on-logic{fill:var(--logic)}
+.d-m.on-phys{fill:var(--phys)}
+.d-line{stroke:var(--muted);stroke-width:1.4;fill:none}
+.d-line-logic{stroke:var(--logic);stroke-width:1.4;fill:none}
+.d-line-phys{stroke:var(--phys);stroke-width:1.8;fill:none}
+.d-dash{stroke-dasharray:5 4}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto;margin:26px 0;border:1px solid var(--wire);border-radius:3px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:640px}
+th,td{text-align:left;padding:11px 15px;border-bottom:1px solid var(--wire-soft);vertical-align:top;line-height:1.5}
+th{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);background:var(--surface-2);border-bottom:1px solid var(--wire);
+  white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:none}
+td.obj{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink);white-space:nowrap;font-weight:500}
+td.l{color:var(--logic)}
+td.p{color:var(--phys)}
+table code{font-size:12.5px;background:var(--surface-2);padding:1px 4px;border-radius:2px}
+
+/* ---------- checklist ---------- */
+.check{list-style:none;padding:0;margin:20px 0;display:flex;flex-direction:column;gap:0;
+       border:1px solid var(--wire);border-radius:3px;overflow:hidden;background:var(--surface)}
+.check li{margin:0;padding:13px 18px;border-bottom:1px solid var(--wire-soft);
+          display:flex;gap:14px;align-items:flex-start;font-size:15.5px;line-height:1.5}
+.check li:last-child{border-bottom:none}
+.check li::before{
+  content:attr(data-n);font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--phys);
+  padding-top:3px;flex:none;min-width:20px;
+}
+
+hr.rule{border:none;border-top:1px solid var(--wire);margin:44px 0}
+.foot{border-top:1px solid var(--wire);margin-top:60px;padding-top:24px;font-size:14px;color:var(--muted)}
+
+:focus-visible{outline:2px solid var(--logic);outline-offset:2px;border-radius:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- дополнение: блоки манифестов ---------- */
+.term.file .term-head{background:var(--logic-wash);color:var(--logic);border-bottom-color:var(--logic)}
+.term.file .term-head .tag{color:var(--logic)}
+.term.file pre{font-size:13px;line-height:1.68}
+.term .y{color:#9BD3A8}          /* значение-строка в YAML */
+.term .n{color:#E0A75B}          /* число */
+.cmdline{
+  margin:-8px 0 24px;border:1px solid var(--wire);border-top:none;
+  background:var(--surface);padding:11px 16px;border-radius:0 0 3px 3px;
+  font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink);overflow-x:auto;
+}
+.cmdline b{color:var(--muted);font-weight:400;display:block;font-size:10.5px;
+           letter-spacing:.14em;text-transform:uppercase;margin-bottom:6px}
+.cmdline code{white-space:pre;display:block;background:none;border:none;padding:0}
+.swap{display:grid;grid-template-columns:1fr;gap:1px;background:var(--wire);
+      border:1px solid var(--wire);border-radius:3px;margin:24px 0;overflow:hidden}
+@media (min-width:820px){.swap{grid-template-columns:1fr 1fr}}
+.swap > div{background:var(--surface);padding:15px 18px}
+.swap .lbl{font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
+           letter-spacing:.15em;text-transform:uppercase;margin-bottom:9px;color:var(--muted)}
+.swap .was .lbl{color:var(--phys)}
+.swap .now .lbl{color:var(--logic)}
+.swap code{font-size:12.5px;display:block;white-space:pre-wrap;word-break:break-word;
+           background:var(--surface-2);border:1px solid var(--wire-soft);
+           padding:8px 10px;border-radius:2px;line-height:1.55}
+</style>
+
+<div class="shell">
+
+  <header class="mast">
+    <div class="col">
+      <div class="eyebrow">Урок 020 · Kubernetes · декларативная редакция</div>
+      <h1>Анатомия кластера</h1>
+      <p class="sub">Тот же разбор — Node, Pod, ReplicaSet, Deployment, Service и правила, — но каждый объект создаётся <em>манифестом</em>, а не императивной командой. У каждого файла подробная документация внутри: что он делает, что происходит физически и чем это проверить.</p>
+      <div class="strip">
+        <span class="chip">Среда: <b>Windows 11 + PowerShell 7</b></span>
+        <span class="chip">Движок: <b>Docker Desktop</b></span>
+        <span class="chip">Кластер: <b>minikube (docker driver)</b></span>
+        <span class="chip">Профиль: <b>calico</b>, 2 ноды</span>
+        <span class="chip">Манифесты: <b>k8s-anatomy/</b></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="body-grid">
+
+    <nav class="rail" aria-label="Содержание">
+      <div class="rail-t">Содержание</div>
+      <ol>
+        <li><a href="#s0"><span class="n">00</span><span>Почему манифест</span></a></li>
+        <li><a href="#s1"><span class="n">01</span><span>Подготовка среды</span></a></li>
+        <li><a href="#s2"><span class="n">02</span><span>Node — нода</span></a></li>
+        <li><a href="#s3"><span class="n">03</span><span>Pod — под</span></a></li>
+        <li><a href="#s4"><span class="n">04</span><span>Replica и ReplicaSet</span></a></li>
+        <li><a href="#s5"><span class="n">05</span><span>Deployment</span></a></li>
+        <li><a href="#s6"><span class="n">06</span><span>Service</span></a></li>
+        <li><a href="#s7"><span class="n">07</span><span>Rule — четыре смысла</span></a></li>
+        <li><a href="#s8"><span class="n">08</span><span>Карта манифестов</span></a></li>
+        <li><a href="#s9"><span class="n">09</span><span>Уборка</span></a></li>
+      </ol>
+    </nav>
+
+    <main>
+
+      <!-- ============ 00 ============ -->
+      <section id="s0">
+        <div class="col">
+          <div class="sec-head"><span class="sec-num">00</span>
+            <h2>Почему манифест, а не команда<span class="en">Запись плюс контроллер — и запись должна быть видна</span></h2>
+          </div>
+          <p class="lead">Почти ни один объект Kubernetes не существует физически. Deployment, ReplicaSet, Service — это JSON-документы в базе <code>etcd</code>. Физически существуют только две вещи: <strong>процессы Linux</strong> на нодах и <strong>правила в ядре</strong> этих нод.</p>
+          <p>Между записью и реальностью стоит <strong>контроллер</strong> — программа, которая крутит бесконечный цикл: «прочитал желаемое состояние → посмотрел на фактическое → сделал разницу». Вся система построена на этом одном шаблоне, повторённом на каждом уровне.</p>
+          <p>Отсюда прямое следствие для практики. Если единственное, что вы отправляете в кластер, — это <em>желаемое состояние</em>, то и хранить надо именно его, а не последовательность команд, которая когда-то к нему привела. Императивная команда — это глагол: он выполнился и исчез. Манифест — существительное: оно лежит в файле и в git.</p>
+
+          <div class="swap">
+            <div class="was">
+              <div class="lbl">Императивно — глагол</div>
+              <code>kubectl create deployment shop --image=nginx:alpine --replicas=3</code>
+              <p style="margin:10px 0 0;font-size:14.5px;line-height:1.55">Что здесь сказано о пробах, лимитах, стратегии обновления? Ничего. Всё осталось на умолчаниях, и узнать, каких именно, можно только запросив объект обратно из кластера.</p>
+            </div>
+            <div class="now">
+              <div class="lbl">Декларативно — существительное</div>
+              <code>kubectl apply -f k8s-anatomy/30-deployment-shop.yaml</code>
+              <p style="margin:10px 0 0;font-size:14.5px;line-height:1.55">Всё, что попадёт в etcd, видно в файле целиком: replicas, strategy, resources, обе пробы. Файл лежит в git, его можно прочитать, отревьюить и применить повторно.</p>
+            </div>
+          </div>
+
+          <h4>Три свойства, которых у команды нет в принципе</h4>
+          <ul>
+            <li><strong>Идемпотентность.</strong> <code>kubectl apply</code> можно выполнить сто раз подряд — результат один и тот же. <code>kubectl create</code> на втором запуске упадёт с <code>AlreadyExists</code>.</li>
+            <li><strong>Полнота.</strong> Манифест описывает объект целиком. Императивные флаги покрывают малую долю полей API: многоконтейнерный под, NetworkPolicy или ReplicaSet командой не создать вообще.</li>
+            <li><strong>Обратимость.</strong> <code>kubectl diff -f</code> покажет разницу до применения, <code>kubectl delete -f</code> снесёт ровно то, что этот файл создал.</li>
+          </ul>
+
+          <div class="note">
+            <span class="nl">Что осталось императивным и почему</span>
+            <p>Команды <em>наблюдения</em> — <code>kubectl get</code>, <code>describe</code>, <code>exec</code>, <code>logs</code>, <code>minikube ssh</code> — манифестами не заменяются и не должны. Они ничего не меняют в кластере, а только показывают текущее состояние. Декларативность касается <strong>изменений</strong>, а не чтения.</p>
+            <p>Отдельный случай — <code>kubectl patch --patch-file</code>. Это тоже файл, но не полный манифест, а фрагмент. В лекции он используется дважды (<code>31-</code>, <code>32-</code>), чтобы показать: масштабирование и смена образа — это правка одного поля, а не пересоздание объекта.</p>
+          </div>
+        </div>
+
+        <div class="wide">
+        <figure>
+          <div class="fig-frame">
+            <svg viewBox="0 0 960 286" role="img" aria-label="Цепочка от манифеста до реального процесса Linux: kubectl apply читает YAML-файл и отправляет его в apiserver, тот пишет в etcd, контроллеры и планировщик следят за etcd, kubelet получает задание и через docker и runc порождает реальный процесс">
+              <defs>
+                <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+                </marker>
+              </defs>
+
+              <text class="d-m on-logic" x="30" y="24">УРОВЕНЬ ДАННЫХ — ЗДЕСЬ НИЧЕГО НЕ «РАБОТАЕТ», ЗДЕСЬ ТОЛЬКО ХРАНИТСЯ</text>
+
+              <rect class="d-box" x="30" y="44" width="130" height="42" rx="2"/>
+              <text class="d-t" x="95" y="63" text-anchor="middle">manifest.yaml</text>
+              <text class="d-t sm" x="95" y="78" text-anchor="middle">файл в git</text>
+
+              <rect class="d-box" x="210" y="44" width="120" height="42" rx="2"/>
+              <text class="d-t" x="270" y="70" text-anchor="middle">kubectl apply</text>
+
+              <rect class="d-box-logic" x="380" y="44" width="170" height="42" rx="2"/>
+              <text class="d-t" x="465" y="70" text-anchor="middle">kube-apiserver</text>
+
+              <rect class="d-box-logic" x="600" y="44" width="110" height="42" rx="2"/>
+              <text class="d-t" x="655" y="70" text-anchor="middle">etcd</text>
+
+              <g color="var(--muted)">
+                <line class="d-line" x1="160" y1="65" x2="204" y2="65" marker-end="url(#ah)"/>
+                <line class="d-line" x1="330" y1="65" x2="374" y2="65" marker-end="url(#ah)"/>
+                <line class="d-line" x1="550" y1="65" x2="594" y2="65" marker-end="url(#ah)"/>
+              </g>
+              <text class="d-m" x="182" y="38" text-anchor="middle">read</text>
+              <text class="d-m" x="352" y="38" text-anchor="middle">PATCH</text>
+              <text class="d-m" x="572" y="38" text-anchor="middle">write</text>
+
+              <text class="d-m on-phys" x="30" y="140">УРОВЕНЬ ИСПОЛНЕНИЯ — КОНТРОЛЛЕРЫ СЛЕДЯТ И ДЕЙСТВУЮТ</text>
+
+              <g color="var(--muted)">
+                <path class="d-line d-dash" d="M 435 86 L 435 118 L 125 118 L 125 158" marker-end="url(#ah)"/>
+                <path class="d-line d-dash" d="M 465 86 L 465 118 L 335 118 L 335 158" marker-end="url(#ah)"/>
+                <path class="d-line d-dash" d="M 495 86 L 495 118 L 515 118 L 515 158" marker-end="url(#ah)"/>
+              </g>
+              <text class="d-m" x="545" y="112">watch — «что изменилось?»</text>
+
+              <rect class="d-box" x="30" y="158" width="190" height="42" rx="2"/>
+              <text class="d-t" x="125" y="184" text-anchor="middle">controller-manager</text>
+
+              <rect class="d-box" x="260" y="158" width="150" height="42" rx="2"/>
+              <text class="d-t" x="335" y="184" text-anchor="middle">kube-scheduler</text>
+
+              <rect class="d-box" x="450" y="158" width="130" height="42" rx="2"/>
+              <text class="d-t" x="515" y="184" text-anchor="middle">kubelet</text>
+
+              <rect class="d-box" x="620" y="158" width="160" height="42" rx="2"/>
+              <text class="d-t" x="700" y="184" text-anchor="middle">docker → runc</text>
+
+              <rect class="d-box-phys" x="820" y="158" width="115" height="42" rx="2"/>
+              <text class="d-t" x="877" y="184" text-anchor="middle">процесс</text>
+
+              <g color="var(--phys)">
+                <line class="d-line-phys" x1="580" y1="179" x2="614" y2="179" marker-end="url(#ah)"/>
+                <line class="d-line-phys" x1="780" y1="179" x2="814" y2="179" marker-end="url(#ah)"/>
+              </g>
+              <text class="d-m on-phys" x="597" y="152" text-anchor="middle">CRI</text>
+              <text class="d-m on-phys" x="797" y="152" text-anchor="middle">clone()</text>
+
+              <text class="d-m on-phys" x="877" y="224" text-anchor="middle">PID + namespaces</text>
+              <text class="d-m on-phys" x="877" y="240" text-anchor="middle">+ cgroups</text>
+              <text class="d-t sm" x="30" y="240">Девять звеньев. Реально только последнее.</text>
+              <text class="d-t sm" x="30" y="262">Первое — обычный текстовый файл, единственное звено, переживающее пересоздание кластера.</text>
+            </svg>
+          </div>
+          <figcaption><b>От файла до процесса.</b> Оранжевым отмечено единственное звено с физическим воплощением. Манифест добавляет к цепочке звено слева — и именно оно переживает <code>minikube delete</code>, в отличие от всего остального.</figcaption>
+        </figure>
+        </div>
+      </section>
+
+      <!-- ============ 01 ============ -->
+      <section id="s1">
+        <div class="col">
+          <div class="sec-head"><span class="sec-num">01</span>
+            <h2>Подготовка среды<span class="en">Docker Desktop как фундамент</span></h2>
+          </div>
+          <p>Мы используем minikube с драйвером <code>docker</code>. Это важный выбор: при таком драйвере <strong>нода кластера — это обычный контейнер Docker Desktop</strong>, в который можно зайти и увидеть процессы, cgroups и правила iptables своими глазами. С встроенным Kubernetes самого Docker Desktop так не получится — там поды живут в отдельном namespace containerd и в <code>docker ps</code> не видны.</p>
+
+          <h4>Шаг 1 — сам кластер: манифестом не создаётся</h4>
+          <p>Кластер существует <em>до</em> того, как появляется API, в который можно что-то отправить. Поэтому первые команды остаются императивными — иначе и быть не может.</p>
+
+          <div class="term">
+            <div class="term-head"><span>PowerShell</span><span class="tag">bootstrap</span></div>
+<pre><span class="c"># Docker Desktop жив?</span>
+docker version --format '{{.Server.Version}}'
+
+<span class="c"># поднимаем двухнодовый профиль с CNI, поддерживающим NetworkPolicy</span>
+<span class="c"># без --cni=calico по умолчанию встанет kindnet, а он политики НЕ исполняет</span>
+minikube start -p calico --cni=calico --nodes=2
+
+<span class="c"># переключаем kubectl на этот кластер</span>
+kubectl config use-context calico
+kubectl get nodes -o wide</pre>
+          </div>
+          <div class="out">
+            <div class="oh">ожидаемый вывод kubectl get nodes</div>
+<pre>NAME         STATUS   ROLES           VERSION   INTERNAL-IP
+calico       Ready    control-plane   v1.33.1   192.168.58.2
+calico-m02   Ready    &lt;none&gt;          v1.33.1   192.168.58.3</pre>
+          </div>
+
+          <h4>Шаг 2 — namespace: здесь начинается декларативность</h4>
+          <p>Как только apiserver отвечает, всё дальнейшее описывается файлами. Первый из них — пространство имён, в котором будет жить вся лекция.</p>
+
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/00-namespace.yaml</span><span class="tag">Namespace</span></div>
+<pre><span class="c"># Namespace — не сеть и не машина, а всего лишь префикс в ключе,</span>
+<span class="c"># под которым объект лежит в etcd. Два объекта с одинаковым именем</span>
+<span class="c"># в разных namespace — это два РАЗНЫХ объекта.</span>
+<span class="k">apiVersion</span>: v1
+<span class="k">kind</span>: <span class="v">Namespace</span>
+<span class="k">metadata</span>:
+  <span class="k">name</span>: lab
+  <span class="k">labels</span>:
+    <span class="c"># Метки на namespace — не украшение. NetworkPolicy умеет выбирать</span>
+    <span class="c"># namespace через namespaceSelector, и матчится он именно по ним.</span>
+    <span class="c"># Без метки правило «пропускать трафик из namespace lab» не написать.</span>
+    <span class="k">name</span>: lab
+    <span class="k">purpose</span>: lecture-020</pre>
+          </div>
+          <div class="cmdline"><b>применить</b><code>kubectl apply -f k8s-anatomy/00-namespace.yaml
+kubectl config set-context --current --namespace=lab</code></div>
+
+          <div class="swap">
+            <div class="was">
+              <div class="lbl">было</div>
+              <code>kubectl create namespace lab</code>
+            </div>
+            <div class="now">
+              <div class="lbl">стало</div>
+              <code>kubectl apply -f k8s-anatomy/00-namespace.yaml</code>
+            </div>
+          </div>
+
+          <p>Вторая команда делает <code>lab</code> пространством имён по умолчанию — дальше можно не писать <code>-n lab</code> в каждой строке. В манифестах namespace всё равно указан явно: файл не должен зависеть от того, какой контекст сейчас активен.</p>
+
+          <div class="note">
+            <span class="nl">Проверка манифестов до применения</span>
+            <p><code>kubectl apply --dry-run=client -f k8s-anatomy/</code> проверит синтаксис и схему всех файлов, ничего не создавая. <code>kubectl diff -f &lt;файл&gt;</code> покажет, что именно изменится в кластере, — незаменимо, когда применяете обновлённый манифест поверх работающего объекта.</p>
+          </div>
+
+          <div class="note">
+            <span class="nl">Если что-то не поднимается</span>
+            <p>Проверьте, что Docker Desktop запущен и в его настройках выделено хотя бы 4 GB RAM. Для одноузлового варианта достаточно <code>minikube start -p calico --cni=calico</code> — все манифесты применятся и на одной ноде, просто раздел про размещение реплик будет менее наглядным.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 02 ============ -->
+      <section id="s2">
+        <div class="col">
+          <div class="sec-head"><span class="sec-num">02</span>
+            <h2>Node — нода<span class="en">Единственный объект, который нельзя описать манифестом</span></h2>
+          </div>
+          <p>Нода — фундамент всей иерархии. Всё остальное в итоге сводится к тому, что <em>на какой-то ноде запустился процесс</em>. И это единственный объект лекции, для которого <strong>манифеста не существует и существовать не может</strong>.</p>
+
+          <div class="tracks">
+            <div class="track t-logic">
+              <div class="lbl">Логически</div>
+              <p>Объект <code>Node</code> в etcd. Вы его <strong>не создаёте</strong> — kubelet при старте сам регистрируется в API и создаёт запись о себе.</p>
+              <p>В записи: сколько CPU и памяти доступно (<code>capacity</code> / <code>allocatable</code>), метки, taint-ы, условия здоровья (<code>Ready</code>, <code>MemoryPressure</code>). Планировщик читает именно эту запись, а не опрашивает железо.</p>
+            </div>
+            <div class="track t-phys">
+              <div class="lbl">Физически</div>
+              <p>Машина с Linux. В проде — сервер или VM. У нас — <strong>контейнер Docker Desktop</strong> с systemd внутри.</p>
+              <p>На ней обязательно крутятся три вещи: <code>kubelet</code> (агент, который создаёт контейнеры), <code>kube-proxy</code> (пишет правила в ядро) и <strong>container runtime</strong> (docker/containerd). Плюс CNI-плагин для сети подов.</p>
+            </div>
+          </div>
+
+          <div class="note phys">
+            <span class="nl">Почему у ноды нет манифеста</span>
+            <p>Все прочие объекты работают по схеме «сначала запись, потом контроллер создаёт под неё реальность». Нода — наоборот: сначала существует машина, потом kubelet описывает её в etcd. Написать <code>kind: Node</code> и применить технически можно, но это создаст <em>пустую карточку без машины</em> — планировщик начнёт слать на неё поды, а исполнять их будет некому.</p>
+            <p>Единственное, что у ноды правят декларативно, — метки и taint-ы: <code>kubectl label node</code>, <code>kubectl taint node</code> или <code>kubectl patch node</code>. Само существование ноды кластеру не подвластно.</p>
+          </div>
+
+          <h4>Проверяем: нода — это контейнер</h4>
+          <div class="term">
+            <div class="term-head"><span>PowerShell</span><span class="tag">node = docker container</span></div>
+<pre><span class="c"># ноды глазами Kubernetes</span>
+kubectl get nodes -o wide
+
+<span class="c"># те же самые ноды глазами Docker Desktop</span>
+docker ps --filter "name=calico" --format "table {{.Names}}`t{{.Image}}`t{{.Status}}"
+
+<span class="c"># PID контейнера-ноды в вашей системе</span>
+docker inspect calico --format '{{.State.Pid}}'</pre>
+          </div>
+          <div class="out">
+            <div class="oh">реальный вывод</div>
+<pre>NAME         STATUS   ROLES           INTERNAL-IP    CONTAINER-RUNTIME
+calico       Ready    control-plane   192.168.58.2   docker://29.2.1
+calico-m02   Ready    &lt;none&gt;          192.168.58.3   docker://29.2.1
+
+NAMES        IMAGE                                 STATUS
+calico-m02   gcr.io/k8s-minikube/kicbase:v0.0.50   Up 6 minutes
+calico       gcr.io/k8s-minikube/kicbase:v0.0.50   Up 7 minutes
+
+Одни и те же имена в двух списках. kubectl показывает их как Node-объекты,
+docker ps — как контейнеры. Это один объект, увиденный с двух сторон.</pre>
+          </div>
+
+          <h4>Смотрим, что за демоны живут на ноде</h4>
+          <div class="term">
+            <div class="term-head"><span>PowerShell</span><span class="tag">внутрь ноды</span></div>
+<pre><span class="c"># флаг -n выбирает КОНКРЕТНУЮ ноду; без него попадёте на control-plane</span>
+<span class="c"># ВАЖНО: паттерн grep одинаковый для обеих нод — иначе сравнение нечестное</span>
+minikube ssh -p calico -n calico -- "ps -e -o pid,comm --no-headers | grep -E 'kubelet|kube-proxy|dockerd|etcd|apiserver'"
+
+<span class="c"># та же команда, тот же grep, вторая нода</span>
+minikube ssh -p calico -n calico-m02 -- "ps -e -o pid,comm --no-headers | grep -E 'kubelet|kube-proxy|dockerd|etcd|apiserver'"</pre>
+          </div>
+          <div class="out">
+            <div class="oh">реальный вывод — слева control-plane, справа воркер</div>
+<pre>calico (control-plane)          calico-m02 (worker)
+──────────────────────          ───────────────────
+ 1354 kubelet                     112 kubelet
+25993 dockerd                   22027 dockerd
+27008 cri-dockerd               22533 cri-dockerd
+27803 etcd                          — нет
+27836 kube-apiserver               — нет
+27976 kube-proxy                 22861 kube-proxy
+
+6 процессов                     4 процесса</pre>
+          </div>
+
+          <h4>Почему на воркере процессов меньше</h4>
+          <p>Это не сбой и не недонастроенная нода. Разница ровно в <strong>роли</strong>. Компоненты управляющего слоя описаны static-манифестами в <code>/etc/kubernetes/manifests/</code> <em>только на control-plane</em>, и kubelet поднимает их лишь там. Воркер не участвует в принятии решений — он только исполняет поды, которые ему уже назначил планировщик.</p>
+
+          <div class="tw">
+            <table>
+              <thead>
+                <tr><th>Процесс</th><th>control-plane</th><th>worker</th><th>Почему так</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="obj">kubelet</td><td class="p">есть</td><td class="p">есть</td><td>агент ноды: создаёт контейнеры и регистрирует ноду в API</td></tr>
+                <tr><td class="obj">dockerd · cri-dockerd · containerd</td><td class="p">есть</td><td class="p">есть</td><td>container runtime — запускать контейнеры нужно на каждой ноде</td></tr>
+                <tr><td class="obj">kube-proxy</td><td class="p">есть</td><td class="p">есть</td><td>DaemonSet: по поду на каждой ноде, правила Service нужны везде</td></tr>
+                <tr><td class="obj">etcd</td><td class="l">есть</td><td>нет</td><td>единственная база кластера, живёт только на control-plane</td></tr>
+                <tr><td class="obj">kube-apiserver</td><td class="l">есть</td><td>нет</td><td>единственная дверь к etcd; воркер ходит к нему по сети</td></tr>
+                <tr><td class="obj">kube-scheduler</td><td class="l">есть</td><td>нет</td><td>решение о размещении принимается централизованно</td></tr>
+                <tr><td class="obj">kube-controller-manager</td><td class="l">есть</td><td>нет</td><td>здесь крутятся циклы ReplicaSet и Deployment</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="note">
+            <span class="nl">Ловушка: ps -o comm режет имя до 15 символов</span>
+            <p>В выводе выше <strong>не видно</strong> ни <code>kube-scheduler</code>, ни <code>kube-controller-manager</code> — и не потому, что их нет. Паттерн <code>apiserver</code> ловит только apiserver, а <code>kube-controller-manager</code> вдобавок обрезается ядром до <code>kube-controller</code>: поле <code>comm</code> имеет длину 15 символов. Берите <code>-o args</code> — там полная командная строка:</p>
+          </div>
+
+          <div class="term">
+            <div class="term-head"><span>PowerShell</span><span class="tag">честный список</span></div>
+<pre>minikube ssh -p calico -n calico -- "ps -e -o pid,args --no-headers | grep -E 'kubelet|kube-|etcd|dockerd' | grep -v grep"</pre>
+          </div>
+          <div class="out">
+            <div class="oh">что на самом деле крутится на control-plane</div>
+<pre>27763 kube-controller-manager      <span class="c">&lt;- в comm было просто "kube-controller"</span>
+27958 kube-scheduler               <span class="c">&lt;- grep 'apiserver' его не ловил</span>
+29278 kube-controllers             <span class="c">&lt;- calico-kube-controllers, тоже на CP</span>
+
+Итого не 6 процессов, а 8. Первый вывод был неполным из-за grep,
+а не потому, что кластер устроен именно так.</pre>
+          </div>
+
+          <div class="note">
+            <span class="nl">Запомните флаг -n</span>
+            <p>В многонодовом кластере <code>minikube ssh -p calico</code> без <code>-n</code> всегда заводит на control-plane. И держите в голове, что флаг перегружен: у <code>minikube ssh</code> он означает <strong>ноду</strong>, а у <code>minikube service</code> и <code>kubectl</code> — <strong>namespace</strong>. Подробный разбор с типичной ошибкой — в секции 06.</p>
+          </div>
+
+          <div class="note phys">
+            <span class="nl">Ключевая мысль</span>
+            <p>Нода — <strong>единственный</strong> объект Kubernetes, у которого запись в etcd описывает уже существующую физическую вещь. Все остальные объекты работают наоборот: сначала запись, потом контроллер создаёт под неё реальность. Именно поэтому у всех остальных есть манифест, а у ноды его нет.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 03 ============ -->
+      <section id="s3">
+        <div class="col">
+          <div class="sec-head"><span class="sec-num">03</span>
+            <h2>Pod — под<span class="en">Не контейнер, а общий сетевой конверт</span></h2>
+          </div>
+          <p>Под — минимальная единица, которую планировщик умеет размещать. Kubernetes <strong>никогда</strong> не планирует отдельный контейнер, только под целиком.</p>
+
+          <div class="tracks">
+            <div class="track t-logic">
+              <div class="lbl">Логически</div>
+              <p>Объект <code>Pod</code> в etcd: список контейнеров, тома, запросы ресурсов. Плюс поле <code>spec.nodeName</code> — его заполняет планировщик.</p>
+              <p>Пока <code>nodeName</code> пустой, под находится в состоянии <code>Pending</code> и существует <em>только</em> как запись в базе. Никакого процесса ещё нет.</p>
+            </div>
+            <div class="track t-phys">
+              <div class="lbl">Физически</div>
+              <p>Группа процессов Linux на одной ноде, разделяющих <strong>сетевой namespace</strong>, IPC и (опционально) тома.</p>
+              <p>Первым runtime запускает крошечный <code>pause</code>-контейнер: он ничего не делает, но <em>держит</em> сетевой namespace. Все остальные контейнеры пода подключаются в namespace этого pause. Поэтому у пода один IP и контейнеры видят друг друга по <code>localhost</code>.</p>
+            </div>
+          </div>
+
+          <h4>Манифест одноконтейнерного пода</h4>
+          <p>Императивный <code>kubectl run</code> создал бы под из трёх полей. Манифест показывает то, что в императивной версии осталось невидимым: лимиты, пробы, политику перезапуска — и главное, документирует, чего в спеке <em>нет</em>.</p>
+
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/10-pod-web.yaml</span><span class="tag">Pod · фрагмент</span></div>
+<pre><span class="k">apiVersion</span>: v1
+<span class="k">kind</span>: <span class="v">Pod</span>
+<span class="k">metadata</span>:
+  <span class="k">name</span>: web
+  <span class="k">namespace</span>: lab
+  <span class="k">labels</span>:
+    <span class="c"># метка — ЕДИНСТВЕННЫЙ способ, которым Service, ReplicaSet</span>
+    <span class="c"># и NetworkPolicy находят этот под. Имя пода для них не существует.</span>
+    <span class="k">app</span>: web
+<span class="k">spec</span>:
+  <span class="c"># containers — список контейнеров ПРИЛОЖЕНИЯ.</span>
+  <span class="c"># Pause-контейнера здесь НЕТ и быть не может: его добавляет runtime.</span>
+  <span class="k">containers</span>:
+    - <span class="k">name</span>: web        <span class="c"># попадёт в имя docker-контейнера: k8s_&lt;это&gt;_&lt;под&gt;_&lt;ns&gt;_&lt;uid&gt;_&lt;n&gt;</span>
+      <span class="k">image</span>: nginx:alpine
+      <span class="k">imagePullPolicy</span>: IfNotPresent   <span class="c"># не ходить в реестр, если образ уже на ноде</span>
+      <span class="k">ports</span>:
+        - <span class="k">name</span>: http
+          <span class="k">containerPort</span>: <span class="n">80</span>       <span class="c"># ВАЖНО: это поле НИЧЕГО не открывает.</span>
+                               <span class="c"># Оно чисто информационное — просто документирует,</span>
+                               <span class="c"># что процесс слушает 80. Контейнер доступен</span>
+                               <span class="c"># по этому порту и без этой строки.</span>
+      <span class="k">resources</span>:
+        <span class="k">requests</span>:              <span class="c"># читает ПЛАНИРОВЩИК, чтобы выбрать ноду</span>
+          <span class="k">cpu</span>: 50m
+          <span class="k">memory</span>: 32Mi
+        <span class="k">limits</span>:                <span class="c"># читает KUBELET, чтобы настроить cgroup</span>
+          <span class="k">cpu</span>: 200m             <span class="c"># превышение CPU -> процесс троттлится</span>
+          <span class="k">memory</span>: 128Mi         <span class="c"># превышение памяти -> OOM-killer убивает.</span>
+                               <span class="c"># Разное поведение, легко перепутать.</span>
+      <span class="k">readinessProbe</span>:          <span class="c"># пока не прошла — IP пода НЕ попадёт</span>
+        <span class="k">httpGet</span>:               <span class="c"># в EndpointSlice, Service его не увидит</span>
+          <span class="k">path</span>: /
+          <span class="k">port</span>: http           <span class="c"># ссылка на ИМЯ порта, объявленное выше</span>
+        <span class="k">initialDelaySeconds</span>: <span class="n">2</span>
+        <span class="k">periodSeconds</span>: <span class="n">5</span>
+  <span class="k">restartPolicy</span>: Always    <span class="c"># kubelet поднимет упавший контейнер В ТОМ ЖЕ поде:</span>
+                            <span class="c"># podIP сохранится, вырастет restartCount.</span>
+                            <span class="c"># Это НЕ то же, что пересоздание пода контроллером.</span>
+  <span class="k">terminationGracePeriodSeconds</span>: <span class="n">5</span></pre>
+          </div>
+          <div class="cmdline"><b>применить</b><code>kubectl apply -f k8s-anatomy/10-pod-web.yaml
+kubectl wait --for=condition=Ready pod/web -n lab --timeout=90s</code></div>
+
+          <div class="swap">
+            <div class="was">
+              <div class="lbl">было</div>
+              <code>kubectl run web --image=nginx:alpine --port=80</code>
+            </div>
+            <div class="now">
+              <div class="lbl">стало</div>
+              <code>kubectl apply -f k8s-anatomy/10-pod-web.yaml</code>
+            </div>
+          </div>
+
+          <h4>Находим его процессы: один контейнер в спеке, два на ноде</h4>
+          <div class="term">
+            <div class="term-head"><span>PowerShell</span><span class="tag">под → контейнеры</span></div>
+<pre><span class="c"># на какую ноду его положил планировщик</span>
+$node = (kubectl get pod web -n lab -o jsonpath='{.spec.nodeName}')
+
+<span class="c"># смотрим контейнеры этого пода именно на ЕГО ноде</span>
+minikube ssh -p calico -n $node -- "docker ps --filter name=_web_lab_ --format '{{.Names}}'"</pre>
+          </div>
+          <div class="out">
+            <div class="oh">реальный вывод</div>
+<pre>k8s_web_web_lab_41c157e4-cfc6-4683-b6c1-a30630ca652b_0     &lt;&#8209; ваш nginx
+k8s_POD_web_lab_41c157e4-cfc6-4683-b6c1-a30630ca652b_0     &lt;&#8209; тот самый pause
+
+В манифесте описан ОДИН контейнер. Runtime создал ДВА.
+Второй, с префиксом k8s_POD_, — это и есть материализация понятия "под".</pre>
+          </div>
+
+          <h4>Как читать имена контейнеров k8s_*</h4>
+          <div class="term">
+            <div class="term-head"><span>схема имени</span><span class="tag">k8s_…</span></div>
+<pre>k8s_<span class="c">&lt;контейнер&gt;</span>_<span class="c">&lt;под&gt;</span>_<span class="c">&lt;namespace&gt;</span>_<span class="c">&lt;uid пода&gt;</span>_<span class="c">&lt;restartCount&gt;</span>
+
+k8s_ web _ web _ lab _ 41c157e4-cfc6-4683-b6c1-a30630ca652b _ 0
+     └┬─┘  └┬─┘  └┬─┘  └────────────────┬───────────────────┘  └┬┘
+   имя     имя    ns          uid пода в etcd            сколько раз
+контейнера пода                                    контейнер перезапускался
+
+k8s_POD_… — вместо имени контейнера стоит литерал POD.
+Это pause. У него тот же uid, значит он из того же пода.</pre>
+          </div>
+
+          <div class="note">
+            <span class="nl">uid — вот что склеивает строки в под</span>
+            <p>Не имя, а <strong>uid</strong>. Две строки с одинаковым uid — это один под. Разные uid — разные поды, даже если имя пода совпадает: пересозданный <code>web</code> получит новый uid, и это будет уже другой объект.</p>
+            <p>Фильтр <code>docker ps --filter name=web</code> ищет по <em>подстроке</em>, поэтому легко захватывает чужие поды со словом «web» в имени. Формула для самопроверки: строк в выводе = <strong>(число подов на этой ноде) × (1 pause + число контейнеров в поде)</strong>. Не сходится — значит, фильтр поймал лишнее.</p>
+          </div>
+
+          <h4>Два контейнера в одном поде: случай, где императива нет вообще</h4>
+          <p><code>kubectl run</code> умеет создать под только с одним контейнером. Многоконтейнерный под описывается исключительно манифестом — это первое место в лекции, где у декларативного подхода просто нет альтернативы.</p>
+
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/11-pod-duo.yaml</span><span class="tag">Pod · 2 контейнера</span></div>
+<pre><span class="k">apiVersion</span>: v1
+<span class="k">kind</span>: <span class="v">Pod</span>
+<span class="k">metadata</span>:
+  <span class="k">name</span>: duo
+  <span class="k">namespace</span>: lab
+  <span class="k">labels</span>: { <span class="k">app</span>: duo }
+<span class="k">spec</span>:
+  <span class="k">containers</span>:
+    <span class="c"># Контейнер 1 — сервер. Слушает 80 в ОБЩЕМ для пода netns.</span>
+    - <span class="k">name</span>: web
+      <span class="k">image</span>: nginx:alpine
+      <span class="k">ports</span>:
+        - <span class="k">containerPort</span>: <span class="n">80</span>
+
+    <span class="c"># Контейнер 2 — клиент. Ему НЕ нужно знать IP соседа:</span>
+    <span class="c"># сосед доступен по localhost, потому что netns один на двоих.</span>
+    - <span class="k">name</span>: shell
+      <span class="k">image</span>: busybox:1.36
+      <span class="c"># command переопределяет ENTRYPOINT. Без него busybox запустил бы sh,</span>
+      <span class="c"># получил EOF на stdin, завершился — и под ушёл бы в CrashLoopBackOff.</span>
+      <span class="c"># Контейнер ОБЯЗАН держать процесс живым.</span>
+      <span class="k">command</span>: [<span class="y">"sh"</span>, <span class="y">"-c"</span>, <span class="y">"sleep 3600"</span>]</pre>
+          </div>
+          <div class="cmdline"><b>применить и доказать общий netns</b><code>kubectl apply -f k8s-anatomy/11-pod-duo.yaml
+kubectl wait --for=condition=Ready pod/duo -n lab --timeout=90s
+
+kubectl exec duo -n lab -c shell -- wget -qO- --timeout=3 http://localhost:80
+kubectl exec duo -n lab -c shell -- ip -o addr show eth0
+kubectl get pod duo -n lab -o jsonpath='{.status.podIP}{"\n"}'</code></div>
+
+          <div class="out">
+            <div class="oh">реальный вывод</div>
+<pre>&lt;title&gt;Welcome to nginx!&lt;/title&gt;        &lt;&#8209; busybox достучался до nginx по localhost
+
+3: eth0    inet 10.244.228.12/32 scope global eth0
+10.244.228.12                            &lt;&#8209; IP на eth0 совпадает с podIP
+
+Два образа, два процесса — но одна сетевая карта на двоих.
+Обычные контейнеры Docker так не умеют: у каждого свой netns.
+На ноде при этом ТРИ контейнера: pause + nginx + busybox.</pre>
+          </div>
+
+          <div class="note phys">
+            <span class="nl">Под ≠ контейнер</span>
+            <p>Под — это <em>сетевой и ресурсный конверт</em>, внутри которого лежат один или несколько контейнеров. На уровне ядра это набор namespace-ов (NET, IPC, UTS общие; PID и MNT обычно свои у каждого контейнера) и общая cgroup-группа с лимитами. Порты внутри пода делятся: два контейнера не могут слушать один и тот же порт, будет «address already in use».</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 04 ============ -->
+      <section id="s4">
+        <div class="col">
+          <div class="sec-head"><span class="sec-num">04</span>
+            <h2>Replica и ReplicaSet<span class="en">Реплика — это число, а не объект</span></h2>
+          </div>
+          <p>Слово «реплика» не обозначает никакой сущности. Это <strong>целое число</strong> в поле <code>spec.replicas</code>, и ничего больше. Физическое воплощение числа 3 — три пода, и всё.</p>
+
+          <div class="tracks">
+            <div class="track t-logic">
+              <div class="lbl">Логически</div>
+              <p>Объект <code>ReplicaSet</code>: <code>replicas: N</code>, <code>selector</code> (какие поды считать своими) и <code>template</code> (по какому образцу создавать новые).</p>
+              <p>Связь «чей это под» хранится не в ReplicaSet, а в самом поде — в поле <code>metadata.ownerReferences</code>. Это указатель снизу вверх, обычное текстовое поле.</p>
+            </div>
+            <div class="track t-phys">
+              <div class="lbl">Физически</div>
+              <p>Ничего. Ноль байт на нодах. ReplicaSet — это <strong>цикл в процессе kube-controller-manager</strong> на control plane.</p>
+              <p>Цикл: подписаться на события по селектору → посчитать → если меньше N, создать записи Pod; если больше — удалить лишние. Дальше подхватывают планировщик и kubelet.</p>
+            </div>
+          </div>
+
+          <h4>Голый ReplicaSet: ещё один объект без императивной команды</h4>
+          <p>В боевой практике ReplicaSet руками не создают — его создаёт Deployment. Но чтобы понять, <em>что именно</em> делает Deployment, нужно один раз увидеть слой под ним отдельно. <code>kubectl create</code> такого не умеет: только манифест.</p>
+
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/20-replicaset-bare.yaml</span><span class="tag">ReplicaSet</span></div>
+<pre><span class="k">apiVersion</span>: apps/v1        <span class="c"># ReplicaSet живёт в группе apps, не в core</span>
+<span class="k">kind</span>: <span class="v">ReplicaSet</span>
+<span class="k">metadata</span>:
+  <span class="k">name</span>: bare
+  <span class="k">namespace</span>: lab
+<span class="k">spec</span>:
+  <span class="c"># Та самая "реплика": ЦЕЛОЕ ЧИСЛО. Отдельного объекта не существует.</span>
+  <span class="k">replicas</span>: <span class="n">3</span>
+
+  <span class="c"># selector — по нему контроллер считает "свои" поды.</span>
+  <span class="c"># ВАЖНО: считает ЛЮБОЙ подходящий под, даже созданный не им.</span>
+  <span class="c"># Создайте руками под с меткой app=bare — RS усыновит его,</span>
+  <span class="c"># а взамен удалит один из своих, чтобы число осталось 3.</span>
+  <span class="c"># В apps/v1 это поле ИММУТАБЕЛЬНО — отсюда всё поведение Deployment.</span>
+  <span class="k">selector</span>:
+    <span class="k">matchLabels</span>:
+      <span class="k">app</span>: bare
+
+  <span class="c"># template — образец, по которому штампуются поды.</span>
+  <span class="c"># ЖЕЛЕЗНОЕ ПРАВИЛО: метки здесь ОБЯЗАНЫ подходить под selector выше.</span>
+  <span class="c"># Иначе контроллер создаст под, не увидит его своим, создаст ещё один,</span>
+  <span class="c"># снова не увидит — и так до бесконечности. apiserver такой манифест</span>
+  <span class="c"># отклонит с ошибкой "selector does not match template".</span>
+  <span class="k">template</span>:
+    <span class="k">metadata</span>:
+      <span class="k">labels</span>:
+        <span class="k">app</span>: bare          <span class="c"># &lt;- обязано матчиться с selector</span>
+    <span class="k">spec</span>:
+      <span class="k">containers</span>:
+        - <span class="k">name</span>: nginx
+          <span class="k">image</span>: nginx:alpine</pre>
+          </div>
+          <div class="cmdline"><b>применить и увидеть цикл сверки</b><code>kubectl apply -f k8s-anatomy/20-replicaset-bare.yaml
+
+$pod = (kubectl get pods -n lab -l app=bare -o jsonpath='{.items[0].metadata.name}')
+kubectl delete pod $pod -n lab
+kubectl get pods -n lab -l app=bare</code></div>
+
+          <div class="out">
+            <div class="oh">реальный вывод</div>
+<pre>NAME         READY   STATUS    AGE
+bare-8v642   1/1     Running   2m
+bare-clfz4   1/1     Running   2m
+bare-x7k9p   1/1     Running   2s      &lt;&#8209; НОВЫЙ, вместо удалённого
+
+Подов по-прежнему 3, но один с возрастом 2s и с ДРУГИМ именем.
+Старый под не воскрес — контроллер создал новый по template.
+Реплика не восстанавливается, она ЗАМЕНЯЕТСЯ.</pre>
+          </div>
+
+          <div class="note phys">
+            <span class="nl">Чего ReplicaSet не умеет — и ради чего есть Deployment</span>
+            <p>Поменяйте в этом файле <code>image</code> и примените заново: <strong>не произойдёт ничего</strong>. Старые поды продолжат работать на старом образе, потому что их количество уже верное — цикл сверки смотрит на число, а не на содержимое. Новый образ увидят только те поды, что будут созданы позже, например после удаления старого.</p>
+            <p>Это и есть главный аргумент в пользу Deployment: у ReplicaSet нет ни стратегии обновления, ни истории ревизий, ни отката.</p>
+          </div>
+
+          <h4>Где физически лежит ReplicaSet</h4>
+          <div class="term">
+            <div class="term-head"><span>PowerShell</span><span class="tag">ноль байт на нодах</span></div>
+<pre><span class="c"># на ноде процесса с таким именем нет — ищите сколько угодно</span>
+minikube ssh -p calico -n calico-m02 -- "ps -e -o args | grep -i replicaset | grep -v grep"
+
+<span class="c"># единственная физическая связь RS с подом — текстовое поле в спеке пода</span>
+kubectl get pods -n lab -l app=bare -o jsonpath='{range .items[*]}{.metadata.name}{" &lt;- "}{.metadata.ownerReferences[0].kind}/{.metadata.ownerReferences[0].name}{"\n"}{end}'</pre>
+          </div>
+          <div class="out">
+            <div class="oh">вывод</div>
+<pre>(первая команда — пусто)
+
+bare-8v642 &lt;- ReplicaSet/bare
+bare-clfz4 &lt;- ReplicaSet/bare
+bare-x7k9p &lt;- ReplicaSet/bare
+
+Запись объекта — в etcd на control-plane. Исполнение — цикл внутри
+kube-controller-manager. На нодах с подами: НОЛЬ БАЙТ.
+ownerReferences — просто строка. Никакого канала между объектами нет.</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 05 ============ -->
+      <section id="s5">
+        <div class="col">
+          <div class="sec-head"><span class="sec-num">05</span>
+            <h2>Deployment<span class="en">Контроллер над контроллером</span></h2>
+          </div>
+          <p>Deployment не управляет подами. Он управляет <strong>ReplicaSet-ами</strong> — и в этом весь его смысл. Одна версия шаблона = один ReplicaSet. Обновление = плавный перевод числа реплик из старого RS в новый.</p>
+
+          <div class="tracks">
+            <div class="track t-logic">
+              <div class="lbl">Логически</div>
+              <p>Объект <code>Deployment</code>: тот же <code>replicas</code> и <code>template</code>, плюс <code>strategy</code> (RollingUpdate с <code>maxSurge</code> / <code>maxUnavailable</code>) и история ревизий.</p>
+              <p>При каждом изменении template контроллер считает хеш от шаблона и создаёт новый ReplicaSet с этим хешем в имени.</p>
+            </div>
+            <div class="track t-phys">
+              <div class="lbl">Физически</div>
+              <p>Снова ничего собственного. Во время обновления на нодах просто <strong>сосуществуют процессы двух версий</strong>, и их пропорция меняется шаг за шагом.</p>
+              <p>Откат физически = вернуть счётчик старого RS обратно в N. Старый ReplicaSet не удаляется — он хранится с <code>replicas: 0</code> именно ради этого.</p>
+            </div>
+          </div>
+
+          <h4>Манифест: здесь видно всё, что императив скрывает</h4>
+          <p>Команда <code>kubectl create deployment</code> не даёт указать ни стратегию, ни пробы, ни лимиты. А ведь именно <code>strategy</code> определяет, как поведёт себя обновление, и без явного значения вы получите умолчания, о которых не знаете.</p>
+
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/30-deployment-shop.yaml</span><span class="tag">Deployment · фрагмент</span></div>
+<pre><span class="k">apiVersion</span>: apps/v1
+<span class="k">kind</span>: <span class="v">Deployment</span>
+<span class="k">metadata</span>:
+  <span class="k">name</span>: shop
+  <span class="k">namespace</span>: lab
+  <span class="k">annotations</span>:
+    <span class="c"># CHANGE-CAUSE попадает в kubectl rollout history и подписывает ревизию.</span>
+    <span class="c"># Без неё в истории будет &lt;none&gt; — и понять, что за ревизия, невозможно.</span>
+    <span class="k">kubernetes.io/change-cause</span>: <span class="y">"v1: первичное развёртывание, nginx:alpine"</span>
+<span class="k">spec</span>:
+  <span class="k">replicas</span>: <span class="n">3</span>
+
+  <span class="c"># Селектор Deployment. Иммутабелен, как и у ReplicaSet.</span>
+  <span class="c"># pod-template-hash сюда НЕ входит — его добавляют только в селектор</span>
+  <span class="c"># дочернего RS. Поэтому Service, отбирающий поды по app=shop,</span>
+  <span class="c"># во время обновления видит поды ОБЕИХ версий сразу.</span>
+  <span class="k">selector</span>:
+    <span class="k">matchLabels</span>:
+      <span class="k">app</span>: shop
+
+  <span class="c"># strategy — ЭТО ПОЛЕ И ОТЛИЧАЕТ Deployment ОТ ReplicaSet</span>
+  <span class="k">strategy</span>:
+    <span class="k">type</span>: RollingUpdate     <span class="c"># альтернатива — Recreate: погасить всё, потом поднять</span>
+    <span class="k">rollingUpdate</span>:
+      <span class="k">maxSurge</span>: <span class="n">1</span>          <span class="c"># на сколько можно ПРЕВЫСИТЬ replicas -> в пике 4 пода</span>
+      <span class="k">maxUnavailable</span>: <span class="n">0</span>    <span class="c"># сколько готовых подов можно потерять.</span>
+                            <span class="c"># 0 => обновление без просадки ёмкости: сначала</span>
+                            <span class="c"># поднять новый, дождаться Ready, потом гасить старый.</span>
+
+  <span class="k">revisionHistoryLimit</span>: <span class="n">3</span>   <span class="c"># сколько старых RS хранить с replicas: 0</span>
+                            <span class="c"># ради отката. Умолчание — 10.</span>
+
+  <span class="k">template</span>:
+    <span class="k">metadata</span>:
+      <span class="k">labels</span>:
+        <span class="k">app</span>: shop           <span class="c"># pod-template-hash добавит контроллер сам</span>
+    <span class="k">spec</span>:
+      <span class="k">containers</span>:
+        - <span class="k">name</span>: nginx
+          <span class="k">image</span>: nginx:alpine  <span class="c"># ВЕРСИЯ 1. Файл 32- меняет ровно эту строку.</span>
+          <span class="k">ports</span>:
+            - <span class="k">name</span>: http
+              <span class="k">containerPort</span>: <span class="n">80</span>
+
+          <span class="c"># При maxUnavailable: 0 именно readinessProbe задаёт темп обновления:</span>
+          <span class="c"># старый под не погасят, пока новый не отчитается Ready.</span>
+          <span class="k">readinessProbe</span>:
+            <span class="k">httpGet</span>: { <span class="k">path</span>: /, <span class="k">port</span>: http }
+            <span class="k">periodSeconds</span>: <span class="n">5</span>
+
+          <span class="c"># livenessProbe отвечает на ДРУГОЙ вопрос: "не завис ли процесс".</span>
+          <span class="c">#   провал liveness  -> kubelet УБИВАЕТ контейнер и поднимает заново</span>
+          <span class="c">#   провал readiness -> под просто выводится из балансировки</span>
+          <span class="c"># Путать их опасно: строгая liveness устраивает рестарт-шторм.</span>
+          <span class="k">livenessProbe</span>:
+            <span class="k">httpGet</span>: { <span class="k">path</span>: /, <span class="k">port</span>: http }
+            <span class="k">initialDelaySeconds</span>: <span class="n">10</span>
+            <span class="k">failureThreshold</span>: <span class="n">3</span></pre>
+          </div>
+          <div class="cmdline"><b>применить</b><code>kubectl apply -f k8s-anatomy/30-deployment-shop.yaml
+kubectl rollout status deployment/shop -n lab
+kubectl get deploy,rs,pods -n lab -l app=shop -o wide</code></div>
+
+          <div class="swap">
+            <div class="was">
+              <div class="lbl">было</div>
+              <code>kubectl create deployment shop --image=nginx:alpine --replicas=3</code>
+            </div>
+            <div class="now">
+              <div class="lbl">стало</div>
+              <code>kubectl apply -f k8s-anatomy/30-deployment-shop.yaml</code>
+            </div>
+          </div>
+
+          <h4>Масштабирование — правка одного числа</h4>
+          <p>Патч-файл из трёх строк. В этом вся мысль: «добавить три реплики» физически означает «записать в etcd число 6 вместо 3».</p>
+
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/patches/31-patch-replicas.yaml</span><span class="tag">strategic merge patch</span></div>
+<pre><span class="c"># Фрагмент объекта, который накладывается поверх существующего.</span>
+<span class="c"># Поля, которых здесь нет, остаются как были. Это НЕ полный манифест:</span>
+<span class="c"># через kubectl apply не применяется, только через kubectl patch.</span>
+<span class="k">spec</span>:
+  <span class="k">replicas</span>: <span class="n">6</span>              <span class="c"># было 3</span></pre>
+          </div>
+          <div class="cmdline"><b>применить</b><code>kubectl patch deployment shop -n lab --patch-file k8s-anatomy/patches/31-patch-replicas.yaml
+
+kubectl get pods -n lab -l app=shop -o wide
+kubectl get pods -n lab -l app=shop -o jsonpath='{range .items[*]}{.spec.nodeName}{"\n"}{end}' | Group-Object | Select-Object Name, Count</code></div>
+
+          <div class="note">
+            <span class="nl">Новый ReplicaSet при этом НЕ создаётся</span>
+            <p>Хеш template не изменился — поменялось только число рядом с ним. Сравните со следующим шагом, где меняется сам template и RS появляется новый.</p>
+            <p>В настоящем GitOps патч-файл не используют: правят строку <code>replicas</code> в самом <code>30-deployment-shop.yaml</code> и делают <code>apply</code>, чтобы git хранил актуальное желаемое состояние, а не цепочку модификаций к нему. Здесь патч выбран ради наглядности.</p>
+          </div>
+
+          <h4>Rolling update — правка шаблона</h4>
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/patches/32-patch-image-v2.yaml</span><span class="tag">strategic merge patch</span></div>
+<pre><span class="k">metadata</span>:
+  <span class="k">annotations</span>:
+    <span class="k">kubernetes.io/change-cause</span>: <span class="y">"v2: nginx:alpine -&gt; nginx:1.27-alpine"</span>
+<span class="k">spec</span>:
+  <span class="k">template</span>:
+    <span class="k">spec</span>:
+      <span class="k">containers</span>:
+        <span class="c"># ВАЖНО: в strategic merge patch список containers объединяется</span>
+        <span class="c"># ПО КЛЮЧУ name. Указываем только name и меняемое поле —</span>
+        <span class="c"># порты, пробы и лимиты из файла 30- сохранятся.</span>
+        <span class="c"># Если бы слияние шло по индексу, патч стёр бы всё остальное.</span>
+        - <span class="k">name</span>: nginx
+          <span class="k">image</span>: nginx:1.27-alpine</pre>
+          </div>
+          <div class="cmdline"><b>сначала наблюдение в ОТДЕЛЬНОМ окне, потом патч</b><code># окно 1
+kubectl get pods -n lab -l app=shop -w
+
+# окно 2
+kubectl patch deployment shop -n lab --patch-file k8s-anatomy/patches/32-patch-image-v2.yaml
+kubectl rollout status deployment/shop -n lab
+kubectl get rs -n lab -l app=shop -o custom-columns='RS:.metadata.name,HASH:.metadata.labels.pod-template-hash,DESIRED:.spec.replicas,READY:.status.readyReplicas,IMAGE:.spec.template.spec.containers[0].image'</code></div>
+
+          <div class="out">
+            <div class="oh">реальный вывод</div>
+<pre>RS                HASH        DESIRED  READY   IMAGE
+shop-56964ffbbb   56964ffbbb  0        &lt;none&gt;  nginx:alpine        &lt;&#8209; старый, обнулён
+shop-74dc89d55f   74dc89d55f  6        6       nginx:1.27-alpine   &lt;&#8209; новый
+
+Два ReplicaSet, а не один. Deployment не редактирует RS — он создаёт
+новый на каждую версию шаблона и переливает в него реплики.
+Селектор RS иммутабелен, поэтому иначе и нельзя.</pre>
+          </div>
+
+          <div class="cmdline"><b>откат</b><code>kubectl rollout history deployment/shop -n lab
+kubectl rollout undo deployment/shop -n lab</code></div>
+
+          <div class="note phys">
+            <span class="nl">Почему откат мгновенный</span>
+            <p>Это не пересборка и не выкачивание образа заново. Deployment просто возвращает старому RS <code>replicas: 6</code>, а новому ставит <code>0</code>. Оба объекта уже существуют, шаблоны в них уже описаны — работа сводится к смене двух чисел. Ради этого старый RS и не удаляется.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 06 ============ -->
+      <section id="s6">
+        <div class="col">
+          <div class="sec-head"><span class="sec-num">06</span>
+            <h2>Service<span class="en">Балансировщик, которого нет</span></h2>
+          </div>
+          <p>Поды — расходный материал: имена и IP меняются при каждом пересоздании. Service даёт им одно стабильное имя и один стабильный виртуальный адрес. Вот только адреса этого <strong>не существует</strong>.</p>
+
+          <div class="tracks">
+            <div class="track t-logic">
+              <div class="lbl">Логически</div>
+              <p>Объект <code>Service</code>: селектор по меткам, порт и тип. Плюс автоматически создаваемый <code>EndpointSlice</code> — список IP <em>готовых</em> подов.</p>
+              <p>Имя <code>shop-svc.lab.svc.cluster.local</code> резолвится CoreDNS в фиктивный ClusterIP.</p>
+            </div>
+            <div class="track t-phys">
+              <div class="lbl">Физически</div>
+              <p><strong>Правила DNAT в netfilter на каждой ноде.</strong> Их пишет <code>kube-proxy</code>, следящий за Service и EndpointSlice.</p>
+              <p>ClusterIP не назначен ни одному интерфейсу и ни один процесс на нём не слушает. Это просто строка в правиле <code>-d</code>, по которой ядро подменяет адрес назначения на IP живого пода.</p>
+            </div>
+          </div>
+
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/40-service-shop-clusterip.yaml</span><span class="tag">Service · ClusterIP</span></div>
+<pre><span class="k">apiVersion</span>: v1
+<span class="k">kind</span>: <span class="v">Service</span>
+<span class="k">metadata</span>:
+  <span class="k">name</span>: shop-svc
+  <span class="k">namespace</span>: lab
+<span class="k">spec</span>:
+  <span class="k">type</span>: ClusterIP           <span class="c"># умолчание; адрес виден только ИЗНУТРИ кластера</span>
+
+  <span class="c"># selector работает ТОЛЬКО по меткам: ни имя Deployment,</span>
+  <span class="c"># ни имя ReplicaSet здесь не участвуют. Service вообще не знает,</span>
+  <span class="c"># что над подами есть какой-то контроллер.</span>
+  <span class="c"># pod-template-hash в селекторе НЕТ — поэтому во время rolling update</span>
+  <span class="c"># Service отбирает поды ОБЕИХ версий и льёт трафик в них параллельно.</span>
+  <span class="k">selector</span>:
+    <span class="k">app</span>: shop
+
+  <span class="k">ports</span>:
+    - <span class="k">name</span>: http
+      <span class="k">port</span>: <span class="n">80</span>              <span class="c"># порт на ClusterIP — по нему обращаются клиенты</span>
+      <span class="k">targetPort</span>: http        <span class="c"># куда переадресовать в поде. Ссылка на ИМЯ порта</span>
+                            <span class="c"># из спеки пода — надёжнее числа: поменяете порт</span>
+                            <span class="c"># в поде, Service править не придётся.</span>
+
+  <span class="c"># sessionAffinity: ClientIP прибивает клиента к одному поду по IP.</span>
+  <span class="c"># Это НЕ решение проблемы долгих соединений (gRPC, WebSocket),</span>
+  <span class="c"># а её усиление: балансировка и так происходит раз на соединение.</span>
+  <span class="k">sessionAffinity</span>: None</pre>
+          </div>
+          <div class="cmdline"><b>применить и найти правила в ядре</b><code>kubectl apply -f k8s-anatomy/40-service-shop-clusterip.yaml
+
+# реальные адреса, на которые ведёт DNAT
+kubectl get endpointslices -n lab -l kubernetes.io/service-name=shop-svc -o wide
+
+# сами правила в ядре ноды
+minikube ssh -p calico -n calico -- "sudo iptables-save -t nat | grep shop-svc"</code></div>
+
+          <div class="swap">
+            <div class="was">
+              <div class="lbl">было</div>
+              <code>kubectl expose deployment shop --port=80 --name=shop-svc</code>
+            </div>
+            <div class="now">
+              <div class="lbl">стало</div>
+              <code>kubectl apply -f k8s-anatomy/40-service-shop-clusterip.yaml</code>
+            </div>
+          </div>
+
+          <div class="out">
+            <div class="oh">реальный вывод iptables (сокращён)</div>
+<pre><span class="c"># 1. вход: пакет на ClusterIP уходит в цепочку сервиса</span>
+-A KUBE-SERVICES -d 10.108.35.22/32 -p tcp --dport 80
+   -j KUBE-SVC-HU4CVN4KOCHT7JT2
+
+<span class="c"># 2. выбор бэкенда — вот вся "балансировка"</span>
+-A KUBE-SVC-HU4CVN4KOCHT7JT2 --comment "shop-svc -&gt; 10.244.15.200:80"
+   -m statistic --mode random --probability 0.33333333349 -j KUBE-SEP-Z3FN...
+-A KUBE-SVC-HU4CVN4KOCHT7JT2 --comment "shop-svc -&gt; 10.244.228.10:80"
+   -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-NM7L...
+-A KUBE-SVC-HU4CVN4KOCHT7JT2 --comment "shop-svc -&gt; 10.244.228.9:80"
+   -j KUBE-SEP-K5KF...
+
+<span class="c"># 3. подмена адреса назначения</span>
+-A KUBE-SEP-Z3FN... -p tcp -j DNAT --to-destination 10.244.15.200:80</pre>
+          </div>
+
+          <div class="note phys">
+            <span class="nl">Разберите вероятности</span>
+            <p>0.333 → 0.5 → без условия. Это не ошибка и не «неравномерность»: правила проверяются по порядку. Первый под получает 1/3 пакетов; из оставшихся 2/3 второй берёт половину — снова 1/3; всё, что дошло до третьего правила, идёт третьему поду. Классический алгоритм равномерного выбора из N вариантов, записанный тремя строками netfilter.</p>
+            <p>И главное: таблица <code>nat</code> проходится <strong>только первым пакетом соединения</strong>. Дальше результат живёт в conntrack. Отсюда известная проблема gRPC: одно долгое соединение = одно решение о выборе пода, и <code>kubectl scale</code> нагрузку не перераспределит.</p>
+          </div>
+
+          <h4>Доказываем, что ClusterIP — фикция</h4>
+          <div class="cmdline"><b>тот же адрес: снаружи мёртв, изнутри работает</b><code>kubectl apply -f k8s-anatomy/80-pod-probe.yaml
+
+$ip = (kubectl get svc shop-svc -n lab -o jsonpath='{.spec.clusterIP}')
+Test-NetConnection $ip -Port 80 -InformationLevel Quiet    # False
+
+kubectl exec probe -n lab -- nslookup shop-svc
+kubectl exec probe -n lab -- wget -qO- --timeout=4 http://shop-svc</code></div>
+
+          <div class="out">
+            <div class="oh">реальный вывод</div>
+<pre>False                                    &lt;&#8209; с Windows-хоста недостижим, и это правильно
+
+Server:  10.96.0.10
+Name:    shop-svc.lab.svc.cluster.local
+Address: 10.108.35.22                    &lt;&#8209; CoreDNS отдал тот же фиктивный IP
+&lt;title&gt;Welcome to nginx!&lt;/title&gt;        &lt;&#8209; изнутри пода: работает
+
+Один и тот же адрес: недостижим снаружи, работает внутри.
+Разница ровно одна — наличие правил kube-proxy в ядре.
+На Windows-хосте этих правил нет, поэтому пакету некуда пойти.</pre>
+          </div>
+
+          <div class="note">
+            <span class="nl">Почему под-клиент — отдельный манифест</span>
+            <p>Одноразовый <code>kubectl run t1 --rm -it</code> получает случайную метку <code>run=t1</code> и потому не попадает под <code>podSelector</code> ни одной NetworkPolicy. Проверить разрешающее правило им невозможно. Постоянный под <code>probe</code> из файла <code>80-pod-probe.yaml</code> несёт явную метку <code>role=probe</code> — она понадобится в секции 07.</p>
+          </div>
+
+          <h4>NodePort: то же самое плюс одно правило</h4>
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/41-service-shop-nodeport.yaml</span><span class="tag">Service · NodePort</span></div>
+<pre><span class="k">apiVersion</span>: v1
+<span class="k">kind</span>: <span class="v">Service</span>
+<span class="k">metadata</span>:
+  <span class="k">name</span>: shop-svc            <span class="c"># ТО ЖЕ имя — это обновление, а не второй объект</span>
+  <span class="k">namespace</span>: lab
+<span class="k">spec</span>:
+  <span class="k">type</span>: NodePort            <span class="c"># &lt;- единственное принципиальное отличие</span>
+  <span class="k">selector</span>:
+    <span class="k">app</span>: shop
+  <span class="k">ports</span>:
+    - <span class="k">name</span>: http
+      <span class="k">port</span>: <span class="n">80</span>
+      <span class="k">targetPort</span>: http
+      <span class="k">nodePort</span>: <span class="n">31208</span>       <span class="c"># порт на КАЖДОЙ ноде кластера, даже на той,</span>
+                            <span class="c"># где нет ни одного пода этого сервиса.</span>
+                            <span class="c"># Диапазон 30000-32767. Можно не указывать —</span>
+                            <span class="c"># выберут автоматически; здесь задан явно,</span>
+                            <span class="c"># чтобы адрес не менялся между пересозданиями.</span>
+
+  <span class="c"># Cluster (умолчание) — принимать на любой ноде и при необходимости</span>
+  <span class="c">#   перебрасывать на другую. Ровнее балансировка, но source IP теряется</span>
+  <span class="c">#   из-за SNAT: под увидит IP ноды, а не клиента.</span>
+  <span class="c"># Local — только поды СВОЕЙ ноды. Source IP сохраняется, лишнего хопа нет,</span>
+  <span class="c">#   но ноды без подов отвечают отказом.</span>
+  <span class="k">externalTrafficPolicy</span>: Cluster</pre>
+          </div>
+          <div class="cmdline"><b>применить и открыть снаружи</b><code>kubectl apply -f k8s-anatomy/41-service-shop-nodeport.yaml
+kubectl get svc shop-svc -n lab
+
+# новое правило в ядре
+minikube ssh -p calico -n calico -- "sudo iptables-save -t nat | grep KUBE-NODEPORTS"
+
+# -n lab обязателен; команда держит туннель до Ctrl+C
+minikube service shop-svc -p calico -n lab --url</code></div>
+
+          <div class="out">
+            <div class="oh">что будет, если забыть -n lab</div>
+<pre>❌  Exiting due to SVC_NOT_FOUND: Service 'shop-svc' was not found in 'default' namespace.
+
+Хотя kubectl config view --minify -o jsonpath='{..namespace}' честно отвечает "lab".
+minikube про этот namespace не знает — см. врезку ниже.</pre>
+          </div>
+
+          <div class="note">
+            <span class="nl">Ловушка: -n значит разное в трёх соседних командах</span>
+            <ul>
+              <li><code>minikube ssh -p calico <strong>-n calico</strong></code> — это <strong>нода</strong>;</li>
+              <li><code>minikube service shop-svc <strong>-n lab</strong></code> — это <strong>namespace</strong>;</li>
+              <li><code>kubectl get svc <strong>-n lab</strong></code> — тоже <strong>namespace</strong>.</li>
+            </ul>
+            <p>И вторая половина ловушки: <code>kubectl config set-context --current --namespace=lab</code> меняет умолчание <em>только для kubectl</em>. Утилита <code>minikube</code> читает kubeconfig ради адреса кластера, но текущий namespace оттуда <strong>не берёт</strong> — у неё захардкожен <code>default</code>.</p>
+          </div>
+
+          <div class="note phys">
+            <span class="nl">Следствия из устройства Service</span>
+            <ul>
+              <li><strong>Это L4, а не L7.</strong> Ядро видит TCP/UDP-пакеты, не HTTP-запросы. Роутинг по путям и хостам — задача Ingress.</li>
+              <li><strong>Долгие соединения не перебалансируются.</strong> DNAT происходит один раз при установке соединения, дальше conntrack держит его на том же поде. Классическая проблема gRPC и keep-alive.</li>
+              <li><strong>Headless-сервис</strong> (<code>clusterIP: None</code>) не создаёт правил вообще — только DNS-записи со списком IP подов. Это и есть штатное решение для клиентской балансировки gRPC.</li>
+              <li><strong><code>--url</code> работает только с NodePort и LoadBalancer.</strong> Для ClusterIP пробрасывать нечего; <code>minikube service list -p calico</code> покажет «No node port».</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 07 ============ -->
+      <section id="s7">
+        <div class="col">
+          <div class="sec-head"><span class="sec-num">07</span>
+            <h2>Rule — четыре разных смысла<span class="en">Одно слово, четыре механизма</span></h2>
+          </div>
+          <p>Слово «правило» в Kubernetes перегружено. За ним стоят четыре совершенно разные вещи, которые исполняются в разных местах и разными программами. Разобрать их — значит понять, где вообще проходят границы системы.</p>
+
+          <div class="tw">
+            <table>
+              <thead>
+                <tr><th>Что за правило</th><th>Где живёт запись</th><th>Кто исполняет</th><th>Физически это</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="obj">iptables rule</td><td>не объект — производное от Service</td><td class="p">kube-proxy → ядро</td><td>строки в netfilter на каждой ноде</td></tr>
+                <tr><td class="obj">NetworkPolicy</td><td>объект в etcd</td><td class="p">CNI-плагин (Calico)</td><td>ещё строки в netfilter/eBPF</td></tr>
+                <tr><td class="obj">Role.rules</td><td>объект в etcd</td><td class="l">kube-apiserver</td><td>ничего — сравнение в памяти</td></tr>
+                <tr><td class="obj">Ingress.rules</td><td>объект в etcd</td><td class="p">под ingress-контроллера</td><td>строки в nginx.conf внутри пода</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>RBAC: правило, у которого нет физического воплощения</h3>
+          <p><code>Role</code> — чистая логика. Никто не пишет ничего в ядро; apiserver просто сверяет запрос со списком в памяти и отвечает «да» или «нет». Это единственный тип правил, целиком остающийся на уровне данных.</p>
+
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/50-rbac-pod-reader.yaml</span><span class="tag">SA + Role + RoleBinding</span></div>
+<pre><span class="c"># Три связанных объекта в одном файле через разделитель "---".</span>
+<span class="c"># Разрешение без связки бесполезно, связка без учётки не работает —</span>
+<span class="c"># для логически неразрывного набора это правильнее трёх файлов.</span>
+
+<span class="c"># --- ДОКУМЕНТ 1: КТО ---</span>
+<span class="k">apiVersion</span>: v1
+<span class="k">kind</span>: <span class="v">ServiceAccount</span>       <span class="c"># учётка для ПРОЦЕССА, а не для человека</span>
+<span class="k">metadata</span>:
+  <span class="k">name</span>: viewer               <span class="c"># полное имя в системе прав:</span>
+  <span class="k">namespace</span>: lab            <span class="c">#   system:serviceaccount:lab:viewer</span>
+---
+<span class="c"># --- ДОКУМЕНТ 2: ЧТО МОЖНО ---</span>
+<span class="k">apiVersion</span>: rbac.authorization.k8s.io/v1
+<span class="k">kind</span>: <span class="v">Role</span>                 <span class="c"># только СПИСОК разрешений, ни к кому не привязан</span>
+<span class="k">metadata</span>:
+  <span class="k">name</span>: pod-reader
+  <span class="k">namespace</span>: lab
+<span class="k">rules</span>:
+  - <span class="k">apiGroups</span>: [<span class="y">""</span>]        <span class="c"># "" — core-группа. Для Deployment было бы ["apps"]</span>
+    <span class="k">resources</span>: [<span class="y">"pods"</span>]    <span class="c"># во МНОЖЕСТВЕННОМ числе, как в URL apiserver</span>
+    <span class="k">verbs</span>: [<span class="y">"get"</span>, <span class="y">"list"</span>, <span class="y">"watch"</span>]
+                            <span class="c"># на этих трёх глаголах построена работа</span>
+                            <span class="c"># ВСЕХ контроллеров Kubernetes.</span>
+                            <span class="c"># create/update/delete отсутствуют — значит запрещены.</span>
+                            <span class="c"># Отдельного правила "deny" в RBAC НЕ СУЩЕСТВУЕТ:</span>
+                            <span class="c"># модель чисто аддитивная, отобрать доступ можно</span>
+                            <span class="c"># только удалив RoleBinding.</span>
+  - <span class="k">apiGroups</span>: [<span class="y">""</span>]
+    <span class="k">resources</span>: [<span class="y">"pods/log"</span>] <span class="c"># логи — ПОДРЕСУРС пода, отдельный от него.</span>
+    <span class="k">verbs</span>: [<span class="y">"get"</span>]          <span class="c"># без этой строки kubectl logs не сработает.</span>
+---
+<span class="c"># --- ДОКУМЕНТ 3: СВЯЗКА ---</span>
+<span class="k">apiVersion</span>: rbac.authorization.k8s.io/v1
+<span class="k">kind</span>: <span class="v">RoleBinding</span>
+<span class="k">metadata</span>:
+  <span class="k">name</span>: viewer-can-read
+  <span class="k">namespace</span>: lab
+<span class="k">subjects</span>:                    <span class="c"># КОМУ выдаём; может быть несколько</span>
+  - <span class="k">kind</span>: ServiceAccount     <span class="c"># варианты: ServiceAccount | User | Group</span>
+    <span class="k">name</span>: viewer
+    <span class="k">namespace</span>: lab
+<span class="k">roleRef</span>:                     <span class="c"># ЧТО выдаём; всегда ровно один, поле иммутабельно</span>
+  <span class="k">kind</span>: Role                 <span class="c"># Role (этот ns) | ClusterRole (глобальная)</span>
+  <span class="k">name</span>: pod-reader
+  <span class="k">apiGroup</span>: rbac.authorization.k8s.io</pre>
+          </div>
+          <div class="cmdline"><b>применить и проверить решение apiserver</b><code>kubectl apply -f k8s-anatomy/50-rbac-pod-reader.yaml
+
+kubectl auth can-i list   pods --as=system:serviceaccount:lab:viewer -n lab
+kubectl auth can-i delete pods --as=system:serviceaccount:lab:viewer -n lab
+kubectl auth can-i list   pods --as=system:serviceaccount:lab:viewer -n default</code></div>
+
+          <div class="out">
+            <div class="oh">вывод</div>
+<pre>yes
+no
+no      &lt;&#8209; граница Role: в чужом namespace прав нет
+
+Никаких процессов, никаких правил в ядре, ни одного пакета в сети.
+apiserver прочитал Role и RoleBinding из etcd и сравнил со списком.</pre>
+          </div>
+
+          <div class="swap">
+            <div class="was">
+              <div class="lbl">было — три команды</div>
+              <code>kubectl create serviceaccount viewer
+kubectl create role pod-reader --verb=get,list,watch --resource=pods
+kubectl create rolebinding viewer-can-read --role=pod-reader --serviceaccount=lab:viewer</code>
+            </div>
+            <div class="now">
+              <div class="lbl">стало — один файл</div>
+              <code>kubectl apply -f k8s-anatomy/50-rbac-pod-reader.yaml</code>
+            </div>
+          </div>
+
+          <h3>NetworkPolicy: правило, которое доезжает до ядра</h3>
+          <p>По умолчанию любой под может обратиться к любому. NetworkPolicy это меняет — но <strong>только если установлен CNI с её поддержкой</strong>. Императивного эквивалента здесь нет вовсе: <code>kubectl create</code> такого объекта не умеет.</p>
+
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/60-networkpolicy-deny-all.yaml</span><span class="tag">NetworkPolicy · запрет</span></div>
+<pre><span class="k">apiVersion</span>: networking.k8s.io/v1
+<span class="k">kind</span>: <span class="v">NetworkPolicy</span>
+<span class="k">metadata</span>:
+  <span class="k">name</span>: shop-deny-all
+  <span class="k">namespace</span>: lab
+<span class="k">spec</span>:
+  <span class="c"># podSelector — к КАКИМ подам применяется политика</span>
+  <span class="c"># (а не "кому разрешено"). Пустой {} означал бы "ко всем подам ns".</span>
+  <span class="k">podSelector</span>:
+    <span class="k">matchLabels</span>:
+      <span class="k">app</span>: shop
+
+  <span class="c"># Какие НАПРАВЛЕНИЯ берём под контроль. Только Ingress — значит,</span>
+  <span class="c"># исходящий трафик подов shop не ограничен. Добавили бы Egress —</span>
+  <span class="c"># пришлось бы отдельно разрешать DNS (порт 53 к kube-dns), иначе</span>
+  <span class="c"># не резолвится ни одно имя. Самая частая ошибка новичка.</span>
+  <span class="k">policyTypes</span>:
+    - Ingress
+
+  <span class="c"># ПУСТОЙ СПИСОК = разрешено ноль источников = запрещено всё.</span>
+  <span class="c"># Правил "deny" в NetworkPolicy не бывает; запрет получается</span>
+  <span class="c"># как побочный эффект. Внимание на разницу:</span>
+  <span class="c">#   ingress: []     &lt;- запрещено всё (пустой СПИСОК правил)</span>
+  <span class="c">#   ingress: [{}]   &lt;- разрешено всё (одно ПУСТОЕ правило)</span>
+  <span class="k">ingress</span>: []</pre>
+          </div>
+
+          <div class="cmdline"><b>обязательно в четыре шага</b><code># ШАГ 1 — контрольный замер ДО политики. Не пропускать!
+kubectl exec probe -n lab -- wget -qO- --timeout=4 http://shop-svc
+
+# ШАГ 2 — применяем запрет
+kubectl apply -f k8s-anatomy/60-networkpolicy-deny-all.yaml
+
+# ШАГ 3 — тот же запрос должен отвалиться ПО ТАЙМАУТУ
+kubectl exec probe -n lab -- wget -qO- --timeout=4 http://shop-svc
+
+# ШАГ 4 — снимаем запрет, доступ возвращается
+kubectl delete -f k8s-anatomy/60-networkpolicy-deny-all.yaml</code></div>
+
+          <div class="out">
+            <div class="oh">реальный вывод (кластер с Calico)</div>
+<pre>ДО:     &lt;title&gt;Welcome to nginx!&lt;/title&gt;
+ПОСЛЕ:  wget: download timed out
+
+Не "connection refused", а именно таймаут. Пакет молча уничтожается
+в ядре (DROP) — приложение вообще не узнаёт, что его заблокировали.
+"Connection refused" означал бы, что пакет ДОШЁЛ, а порт закрыт.</pre>
+          </div>
+
+          <div class="note phys">
+            <span class="nl">Обязательно делайте шаг 1</span>
+            <p>Контрольный замер до политики — не формальность. При подготовке оригинальной лекции запрос не проходил ещё <em>до</em> применения запрета: в namespace <code>default</code> с прошлого урока висела политика <code>default-deny-ingress</code> с пустым селектором. Без шага 1 можно было бы решить, что демонстрация удалась. Проверить, не мешает ли что-то: <code>kubectl get networkpolicy -A</code>.</p>
+          </div>
+
+          <h4>Разрешение поверх запрета: политики складываются</h4>
+          <p>Итоговое разрешение — объединение (OR) всех политик, действующих на под. Приоритетов нет, порядок применения не важен, «последняя побеждает» не бывает.</p>
+
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/61-networkpolicy-allow-probe.yaml</span><span class="tag">NetworkPolicy · разрешение</span></div>
+<pre><span class="k">spec</span>:
+  <span class="k">podSelector</span>:
+    <span class="k">matchLabels</span>:
+      <span class="k">app</span>: shop              <span class="c"># тот же адресат, что у политики-запрета</span>
+  <span class="k">policyTypes</span>: [Ingress]
+  <span class="k">ingress</span>:
+    - <span class="k">from</span>:
+        <span class="c"># ВНИМАНИЕ НА СИНТАКСИС — самая частая ошибка во всём YAML k8s.</span>
+        <span class="c"># Элементы списка from объединяются через ИЛИ,</span>
+        <span class="c"># а ключи ВНУТРИ одного элемента — через И:</span>
+        <span class="c">#</span>
+        <span class="c">#     from:                     from:</span>
+        <span class="c">#       - podSelector: {...}      - podSelector: {...}</span>
+        <span class="c">#       - namespaceSelector: {}     namespaceSelector: {...}</span>
+        <span class="c">#     ^ два элемента: ИЛИ       ^ один элемент: И</span>
+        <span class="c">#</span>
+        <span class="c"># Лишний дефис меняет смысл правила на противоположный,</span>
+        <span class="c"># и никакой ошибки при этом не будет.</span>
+        - <span class="k">podSelector</span>:
+            <span class="k">matchLabels</span>:
+              <span class="k">role</span>: probe      <span class="c"># источник — поды с этой меткой В ЭТОМ ЖЕ ns.</span>
+                                <span class="c"># Без namespaceSelector трафик из других</span>
+                                <span class="c"># namespace не пройдёт, даже от пода</span>
+                                <span class="c"># с точно такой же меткой.</span>
+      <span class="k">ports</span>:
+        - <span class="k">protocol</span>: TCP
+          <span class="k">port</span>: <span class="n">80</span>              <span class="c"># порт ПОЛУЧАТЕЛЯ, то есть targetPort.</span>
+                                <span class="c"># Политика применяется ПОСЛЕ DNAT, когда адрес</span>
+                                <span class="c"># и порт уже подменены на подовые.</span></pre>
+          </div>
+          <div class="cmdline"><b>две одинаковые проверки, разница только в метке клиента</b><code>kubectl apply -f k8s-anatomy/60-networkpolicy-deny-all.yaml
+kubectl apply -f k8s-anatomy/61-networkpolicy-allow-probe.yaml
+
+# клиент С меткой role=probe -> проходит
+kubectl exec probe -n lab -- wget -qO- --timeout=4 http://shop-svc
+
+# клиент БЕЗ метки -> таймаут
+kubectl run no -n lab --rm -i --restart=Never --image=busybox:1.36 -- wget -qO- --timeout=4 http://shop-svc</code></div>
+
+          <div class="note">
+            <span class="nl">Если CNI не поддерживает политики</span>
+            <p>Объект спокойно создастся, <code>kubectl get</code> его покажет, а запрос пройдёт как ни в чём не бывало. Ни ошибки, ни warning, ни события: у NetworkPolicy вообще <strong>нет поля <code>status</code></strong> — ей нечем сообщить, что её никто не читает.</p>
+            <p>Это не поломка, а самая точная иллюстрация принципа всей лекции: <strong>запись в etcd без контроллера не делает ничего</strong>. Тот же файл в кластере с Calico режет трафик, а с kindnet (умолчание minikube!) остаётся мёртвым текстом. Отсюда и <code>--cni=calico</code> при создании профиля.</p>
+          </div>
+
+          <h3>Ingress: правило как конфиг чужой программы</h3>
+          <p>Ingress-правила не исполняются Kubernetes вообще. Их читает <strong>ingress-контроллер</strong> — обычный под с nginx внутри. Он транслирует объект в свой конфиг и перезагружает себя. Физически «правило Ingress» — это блок <code>location</code> в файле <code>nginx.conf</code> внутри чужого пода.</p>
+
+          <div class="term file">
+            <div class="term-head"><span>k8s-anatomy/70-ingress-shop.yaml</span><span class="tag">Ingress</span></div>
+<pre><span class="k">apiVersion</span>: networking.k8s.io/v1
+<span class="k">kind</span>: <span class="v">Ingress</span>
+<span class="k">metadata</span>:
+  <span class="k">name</span>: shop-ing
+  <span class="k">namespace</span>: lab
+  <span class="c"># Аннотации — способ передать контроллеру настройки, которых нет</span>
+  <span class="c"># в стандартной схеме. Префикс определяет, КАКОЙ контроллер их поймёт;</span>
+  <span class="c"># для другого эти же строки будут просто проигнорированы.</span>
+  <span class="k">annotations</span>:
+    <span class="k">nginx.ingress.kubernetes.io/rewrite-target</span>: /
+<span class="k">spec</span>:
+  <span class="c"># КАКОЙ контроллер должен взять этот объект. В кластере их может быть</span>
+  <span class="c"># несколько. Без этого поля объект подхватит контроллер класса</span>
+  <span class="c"># по умолчанию, а если такого нет — НИКТО, и ADDRESS останется пустым.</span>
+  <span class="c"># Это самая частая причина "ingress не работает".</span>
+  <span class="k">ingressClassName</span>: nginx
+
+  <span class="k">rules</span>:
+    - <span class="k">host</span>: shop.local        <span class="c"># правило сработает, только если заголовок Host</span>
+                              <span class="c"># равен этому значению. Убрать host —</span>
+                              <span class="c"># правило начнёт ловить всё подряд.</span>
+      <span class="k">http</span>:
+        <span class="k">paths</span>:
+          - <span class="k">path</span>: /
+            <span class="c"># pathType обязателен. Prefix — по префиксу пути,</span>
+            <span class="c"># Exact — полное совпадение, ImplementationSpecific —</span>
+            <span class="c"># как решит контроллер (у nginx это включает регулярки).</span>
+            <span class="k">pathType</span>: Prefix
+            <span class="k">backend</span>:
+              <span class="k">service</span>:
+                <span class="k">name</span>: shop-svc     <span class="c"># Service ИЗ ЭТОГО ЖЕ namespace. В чужой</span>
+                                  <span class="c"># Ingress ходить не умеет — обычная причина 503.</span>
+                <span class="k">port</span>:
+                  <span class="k">number</span>: <span class="n">80</span>       <span class="c"># порт Service, НЕ порт пода</span></pre>
+          </div>
+          <div class="cmdline"><b>поднять контроллер, применить, найти своё правило внутри чужого пода</b><code>minikube addons enable ingress -p calico
+kubectl apply -f k8s-anatomy/70-ingress-shop.yaml
+kubectl get ingress -n lab          # в ADDRESS должен появиться IP
+
+$ic = (kubectl get pods -n ingress-nginx -l app.kubernetes.io/component=controller -o jsonpath='{.items[0].metadata.name}')
+kubectl exec -n ingress-nginx $ic -- cat /etc/nginx/nginx.conf | Select-String -Pattern "shop" -Context 2,6</code></div>
+
+          <div class="out">
+            <div class="oh">что найдёте</div>
+<pre>server {
+    server_name shop.local ;
+    location / {
+        set $proxy_upstream_name "lab-shop-svc-80";
+        ...
+
+Ваш YAML превратился в обычный кусок nginx-конфига.
+Kubernetes здесь только доставил данные — маршрутизирует nginx.</pre>
+          </div>
+
+          <div class="note">
+            <span class="nl">Пустой ADDRESS — единственная подсказка</span>
+            <p>У Ingress, в отличие от NetworkPolicy, <em>есть</em> поле <code>status</code>. Если <code>kubectl get ingress</code> показывает пустой ADDRESS, значит контроллер объект не подхватил: либо его нет в кластере, либо не совпал <code>ingressClassName</code>. Проверить доступные классы: <code>kubectl get ingressclass</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 08 ============ -->
+      <section id="s8">
+        <div class="col">
+          <div class="sec-head"><span class="sec-num">08</span>
+            <h2>Карта манифестов<span class="en">Что какой файл заменяет</span></h2>
+          </div>
+          <p>Полный комплект лежит в каталоге <code>k8s-anatomy/</code>. Каждый файл самодостаточен: внутри — заголовочный блок с описанием, что объект делает, что происходит физически, чем это проверить и какой командой запускается.</p>
+        </div>
+
+        <div class="wide">
+          <div class="tw">
+            <table>
+              <thead>
+                <tr><th>Файл</th><th>Объект</th><th>Что заменяет</th><th>Команда запуска</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="obj">00-namespace.yaml</td><td class="l">Namespace</td><td><code>kubectl create namespace lab</code></td><td><code>apply -f</code></td></tr>
+                <tr><td class="obj">10-pod-web.yaml</td><td class="l">Pod</td><td><code>kubectl run web --image=nginx:alpine</code></td><td><code>apply -f</code></td></tr>
+                <tr><td class="obj">11-pod-duo.yaml</td><td class="l">Pod, 2 контейнера</td><td class="p">эквивалента нет — kubectl run так не умеет</td><td><code>apply -f</code></td></tr>
+                <tr><td class="obj">20-replicaset-bare.yaml</td><td class="l">ReplicaSet</td><td class="p">эквивалента нет — kubectl create так не умеет</td><td><code>apply -f</code></td></tr>
+                <tr><td class="obj">30-deployment-shop.yaml</td><td class="l">Deployment</td><td><code>kubectl create deployment shop --replicas=3</code></td><td><code>apply -f</code></td></tr>
+                <tr><td class="obj">patches/31-patch-replicas.yaml</td><td class="l">patch</td><td><code>kubectl scale --replicas=6</code></td><td><code>patch --patch-file</code></td></tr>
+                <tr><td class="obj">patches/32-patch-image-v2.yaml</td><td class="l">patch</td><td><code>kubectl set image</code></td><td><code>patch --patch-file</code></td></tr>
+                <tr><td class="obj">40-service-shop-clusterip.yaml</td><td class="l">Service</td><td><code>kubectl expose deployment shop --port=80</code></td><td><code>apply -f</code></td></tr>
+                <tr><td class="obj">41-service-shop-nodeport.yaml</td><td class="l">Service</td><td><code>kubectl patch svc … type NodePort</code></td><td><code>apply -f</code></td></tr>
+                <tr><td class="obj">50-rbac-pod-reader.yaml</td><td class="l">SA + Role + RoleBinding</td><td>три команды <code>kubectl create</code></td><td><code>apply -f</code></td></tr>
+                <tr><td class="obj">60-networkpolicy-deny-all.yaml</td><td class="l">NetworkPolicy</td><td class="p">эквивалента нет</td><td><code>apply -f</code></td></tr>
+                <tr><td class="obj">61-networkpolicy-allow-probe.yaml</td><td class="l">NetworkPolicy</td><td class="p">эквивалента нет</td><td><code>apply -f</code></td></tr>
+                <tr><td class="obj">70-ingress-shop.yaml</td><td class="l">Ingress</td><td><code>kubectl create ingress --rule=…</code></td><td><code>apply -f</code></td></tr>
+                <tr><td class="obj">80-pod-probe.yaml</td><td class="l">Pod</td><td><code>kubectl run t1 --rm -it --image=busybox</code></td><td><code>apply -f</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="col">
+          <h4>Весь комплект одной командой</h4>
+          <div class="term">
+            <div class="term-head"><span>PowerShell</span><span class="tag">всё сразу</span></div>
+<pre><span class="c"># сначала проверка синтаксиса и схемы, без обращения к кластеру</span>
+kubectl apply --dry-run=client -f k8s-anatomy/
+
+<span class="c"># применение по порядку: имена файлов пронумерованы не случайно,</span>
+<span class="c"># kubectl обрабатывает каталог в алфавитном порядке</span>
+kubectl apply -f k8s-anatomy/
+
+<span class="c"># патчи применяются отдельно: это НЕ полные манифесты</span>
+kubectl patch deployment shop -n lab --patch-file k8s-anatomy/patches/31-patch-replicas.yaml
+kubectl patch deployment shop -n lab --patch-file k8s-anatomy/patches/32-patch-image-v2.yaml
+
+<span class="c"># что изменится, если применить обновлённый манифест поверх работающего</span>
+kubectl diff -f k8s-anatomy/30-deployment-shop.yaml</pre>
+          </div>
+
+          <div class="note phys">
+            <span class="nl">Порядок нумерации не декоративный</span>
+            <p><code>kubectl apply -f &lt;каталог&gt;</code> обрабатывает файлы по алфавиту. Namespace идёт под номером <code>00</code>, потому что все остальные объекты в него складываются; Service под <code>40</code> — после Deployment под <code>30</code>, чтобы EndpointSlice сразу нашёл поды. Строго говоря, apiserver примет объекты и в любом порядке — Service без подов просто получит пустой EndpointSlice и наполнится позже, — но при чтении каталога человеком порядок экономит время.</p>
+          </div>
+
+          <h3>Проверка себя</h3>
+          <p>Если на все пункты отвечаете уверенно — материал усвоен.</p>
+          <ol class="check">
+            <li data-n="01">Почему после <code>kubectl delete pod</code> появляется под с <em>другим</em> именем, а не тот же самый?</li>
+            <li data-n="02">Сколько контейнеров реально запустится на ноде, если в манифесте описан один?</li>
+            <li data-n="03">Почему ClusterIP не пингуется, но <code>wget</code> на него из пода работает?</li>
+            <li data-n="04">Где физически находится ReplicaSet — на какой ноде лежат его байты?</li>
+            <li data-n="05">Что происходит с NetworkPolicy, если в кластере нет поддерживающего её CNI?</li>
+            <li data-n="06">Почему при rolling update <code>kubectl get rs</code> показывает два ReplicaSet, а не один?</li>
+            <li data-n="07">Почему длинное gRPC-соединение через Service остаётся на одном поде?</li>
+            <li data-n="08">Почему у Node нет манифеста, хотя у всех остальных объектов лекции он есть?</li>
+            <li data-n="09">Почему <code>kubectl apply</code> можно выполнить дважды, а <code>kubectl create</code> — нет?</li>
+            <li data-n="10">Что произойдёт, если поменять <code>image</code> в манифесте ReplicaSet и применить заново?</li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ============ 09 ============ -->
+      <section id="s9">
+        <div class="col">
+          <div class="sec-head"><span class="sec-num">09</span>
+            <h2>Уборка<span class="en">Вернуть кластер в исходное</span></h2>
+          </div>
+          <p>Поскольку всё создавалось в отдельном namespace, уборка сводится к двум строкам — ни один объект из ваших прошлых уроков не пострадает. Манифесты при этом остаются на диске: в отличие от императивных команд, желаемое состояние никуда не делось и применяется заново одной строкой.</p>
+
+          <div class="term">
+            <div class="term-head"><span>PowerShell</span><span class="tag">cleanup</span></div>
+<pre><span class="c"># вариант 1 — снести ровно то, что создали эти файлы</span>
+kubectl delete -f k8s-anatomy/
+
+<span class="c"># вариант 2 — снести namespace целиком, вместе со всем содержимым</span>
+kubectl config set-context --current --namespace=default
+kubectl delete namespace lab
+
+<span class="c"># аддон ingress, если включали</span>
+<span class="c"># minikube addons disable ingress -p calico</span>
+
+<span class="c"># остановить кластер, сохранив его состояние</span>
+minikube stop -p calico
+
+<span class="c"># удалить кластер полностью (освободит место на диске)</span>
+<span class="c"># minikube delete -p calico</span></pre>
+          </div>
+
+          <div class="note">
+            <span class="nl">Проверка, что всё чисто</span>
+            <p><code>kubectl get all -n lab</code> должен ответить, что ресурсы не найдены, а <code>kubectl config view --minify -o jsonpath='{..namespace}'</code> — показать <code>default</code>. Если вместо ответа Kubernetes приходит HTML-страница логина, значит <code>current-context</code> пуст и kubectl ушёл на легаси-адрес <code>http://localhost:8080</code> — тот самый порт, на котором обычно висит Jenkins.</p>
+          </div>
+
+          <div class="note phys">
+            <span class="nl">Восстановление после полного удаления</span>
+            <p>В этом и состоит практическая разница между двумя редакциями лекции. После <code>minikube delete -p calico</code> императивную версию пришлось бы проходить заново, команда за командой. Декларативная восстанавливается тремя строками:</p>
+          </div>
+
+          <div class="term">
+            <div class="term-head"><span>PowerShell</span><span class="tag">с нуля</span></div>
+<pre>minikube start -p calico --cni=calico --nodes=2
+kubectl config use-context calico
+kubectl apply -f k8s-anatomy/</pre>
+          </div>
+
+          <div class="foot">
+            <p>Декларативная редакция лекции урока 020. Манифесты в <code>k8s-anatomy/</code> проверены командой <code>kubectl apply --dry-run=client</code>. Команды рассчитаны на PowerShell 7, minikube v1.35 с драйвером <code>docker</code> поверх Docker Desktop, Kubernetes v1.33.1, CNI Calico, две ноды. Приведённые «реальные выводы» — фактические результаты прогона; имена подов, хеши ReplicaSet и адреса у вас будут другими, структура — та же.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>

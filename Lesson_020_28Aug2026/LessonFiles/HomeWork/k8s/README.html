@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Порядок действий для домашки Lesson 020: кластер с Calico, применение манифестов, hosts и четыре проверки изоляции.">
+<style>
+  html { -webkit-text-size-adjust: 100%; }
+  body, h1, h2, h3, p, ul, ol, figure, pre, blockquote { margin: 0; }
+  ul, ol { padding: 0; }
+  img, svg { max-width: 100%; }
+  table { border-spacing: 0; }
+</style>
+<title>Запуск и проверка shop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;600;700&family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+
+<style>
+  :root {
+    --bg:          #F5F7F9;
+    --surface:     #FFFFFF;
+    --surface-2:   #EBEFF4;
+    --ink:         #121A21;
+    --muted:       #5A6874;
+    --line:        #D8DFE7;
+    --line-soft:   #E7ECF1;
+    --accent:      #1C6E9C;
+    --accent-soft: #E2EEF6;
+    --allow:       #0E7350;
+    --allow-soft:  #DFF0E8;
+    --deny:        #AC3F24;
+    --deny-soft:   #F8E7E1;
+    --code-bg:     #EFF3F7;
+
+    --f-display: "Bitter", Georgia, "Times New Roman", serif;
+    --f-body:    "Golos Text", "Segoe UI", system-ui, sans-serif;
+    --f-mono:    "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+
+    --measure: 66ch;
+    --radius: 8px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:          #0E1318;
+      --surface:     #151B22;
+      --surface-2:   #1C232B;
+      --ink:         #E2E8EE;
+      --muted:       #93A1AD;
+      --line:        #2A333C;
+      --line-soft:   #212931;
+      --accent:      #6FB4E0;
+      --accent-soft: #16303F;
+      --allow:       #4EBE93;
+      --allow-soft:  #103226;
+      --deny:        #E8845F;
+      --deny-soft:   #35190F;
+      --code-bg:     #11171D;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg:          #0E1318;
+    --surface:     #151B22;
+    --surface-2:   #1C232B;
+    --ink:         #E2E8EE;
+    --muted:       #93A1AD;
+    --line:        #2A333C;
+    --line-soft:   #212931;
+    --accent:      #6FB4E0;
+    --accent-soft: #16303F;
+    --allow:       #4EBE93;
+    --allow-soft:  #103226;
+    --deny:        #E8845F;
+    --deny-soft:   #35190F;
+    --code-bg:     #11171D;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px 96px; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+  /* ---------- header ---------- */
+
+  header.masthead {
+    padding: 72px 0 40px;
+    border-bottom: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 20px;
+  }
+  .eyebrow {
+    font-family: var(--f-mono); font-size: 12px;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+  }
+  h1 {
+    font-family: var(--f-display); font-weight: 700;
+    font-size: clamp(34px, 6vw, 52px); line-height: 1.08;
+    letter-spacing: -0.015em; text-wrap: balance; max-width: 18ch;
+  }
+  .deck { max-width: var(--measure); font-size: 19px; color: var(--muted); }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px; font-family: var(--f-mono); font-size: 12px; }
+  .facts span {
+    border: 1px solid var(--line); background: var(--surface);
+    border-radius: 100px; padding: 4px 12px; color: var(--muted);
+  }
+
+  /* ---------- steps ---------- */
+
+  main { display: flex; flex-direction: column; }
+
+  section.step {
+    display: grid; grid-template-columns: 1fr; gap: 0 28px;
+    padding: 52px 0; border-bottom: 1px solid var(--line-soft);
+  }
+  @media (min-width: 860px) {
+    section.step { grid-template-columns: 64px minmax(0, 1fr); }
+  }
+  .stepnum {
+    font-family: var(--f-mono); font-size: 13px; font-weight: 700;
+    color: var(--accent); padding-top: 10px; letter-spacing: 0.04em;
+  }
+  .stepnum::after {
+    content: ""; display: block; width: 26px; height: 1px;
+    background: var(--line); margin-top: 12px;
+  }
+  @media (max-width: 859px) {
+    .stepnum { margin-bottom: 8px; }
+    .stepnum::after { display: none; }
+  }
+
+  .body { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  .body > * { max-width: var(--measure); }
+  .body > .wide { max-width: 100%; }
+
+  h2 {
+    font-family: var(--f-display); font-weight: 600;
+    font-size: clamp(24px, 3.4vw, 32px); line-height: 1.18;
+    letter-spacing: -0.01em; text-wrap: balance;
+  }
+  h3 { font-family: var(--f-body); font-weight: 600; font-size: 18px; margin-top: 8px; text-wrap: balance; }
+  p { margin: 0; }
+  strong { font-weight: 600; }
+  em { font-style: normal; color: var(--muted); }
+  ul, ol { margin: 0; padding-left: 1.25em; display: flex; flex-direction: column; gap: 8px; }
+  li::marker { color: var(--muted); }
+
+  /* ---------- code ---------- */
+
+  code {
+    font-family: var(--f-mono); font-size: 0.855em;
+    background: var(--code-bg); border: 1px solid var(--line-soft);
+    border-radius: 4px; padding: 1px 5px; word-break: break-word;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px 18px; overflow-x: auto; margin: 0;
+  }
+  pre code {
+    background: none; border: 0; padding: 0;
+    font-size: 13.5px; line-height: 1.62; word-break: normal; white-space: pre;
+  }
+  .c { color: var(--muted); }
+
+  /* команда + чего от неё ждать */
+  .cmd { display: flex; flex-direction: column; gap: 8px; }
+  .cmd .expect {
+    font-size: 14.5px; color: var(--muted);
+    padding-left: 18px; position: relative;
+  }
+  .cmd .expect::before {
+    content: "→"; position: absolute; left: 0; color: var(--accent); font-family: var(--f-mono);
+  }
+  .platform {
+    font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: -12px;
+  }
+
+  /* ---------- callouts ---------- */
+
+  .trap, .key {
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; font-size: 16px;
+  }
+  .trap { background: var(--deny-soft); border-left: 3px solid var(--deny); }
+  .key  { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); }
+  .trap .tag, .key .tag {
+    font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; font-weight: 700;
+  }
+  .trap .tag { color: var(--deny); }
+  .key .tag { color: var(--accent); }
+  .trap code { background: color-mix(in srgb, var(--deny-soft) 55%, transparent); border-color: transparent; }
+  .trap pre { background: color-mix(in srgb, var(--deny-soft) 45%, transparent); border-color: color-mix(in srgb, var(--deny) 28%, transparent); }
+
+  /* ---------- tables ---------- */
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 15.5px; }
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  thead th {
+    font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted); font-weight: 400;
+    border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td code { font-size: 0.82em; }
+  td.file code { white-space: nowrap; }
+
+  /* ---------- checks ---------- */
+
+  .checklist { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 760px) { .checklist { grid-template-columns: 1fr 1fr; } }
+  .check {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 8px;
+    border-top: 3px solid var(--line);
+  }
+  .check.ok { border-top-color: var(--allow); }
+  .check.blocked { border-top-color: var(--deny); }
+  .check .verdict {
+    font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; font-weight: 700;
+  }
+  .check.ok .verdict { color: var(--allow); }
+  .check.blocked .verdict { color: var(--deny); }
+  .check pre { font-size: 12.5px; padding: 12px 14px; }
+  .check pre code { font-size: 12.5px; white-space: pre-wrap; word-break: break-word; }
+  .check .why { font-size: 14.5px; color: var(--muted); }
+
+  footer.end {
+    padding: 44px 0 0; color: var(--muted); font-size: 15px;
+    display: flex; flex-direction: column; gap: 8px; max-width: var(--measure);
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Lesson 020 · порядок действий</div>
+    <h1>Запуск и проверка shop</h1>
+    <p class="deck">Пять шагов от чистой машины до подтверждённой изоляции: кластер с Calico, применение манифестов, hosts, четыре проверки и уборка.</p>
+    <div class="facts">
+      <span>HomeWork/k8s</span>
+      <span>12 объектов</span>
+      <span>kubectl apply -f .</span>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- files -->
+    <section class="step">
+      <div class="stepnum">◇</div>
+      <div class="body">
+        <h2>Что лежит в папке</h2>
+        <p class="wide">Файлы пронумерованы не для красоты: <code>kubectl apply -f .</code> применяет их в алфавитном порядке, поэтому Namespace создаётся раньше всего, что в него кладётся, а политики — последними, когда поды уже описаны.</p>
+        <div class="tablewrap wide">
+          <table>
+            <thead><tr><th>Файл</th><th>Что создаёт</th></tr></thead>
+            <tbody>
+              <tr><td class="file"><code>00-namespace.yaml</code></td><td>namespace <code>shop</code></td></tr>
+              <tr><td class="file"><code>10-backend.yaml</code></td><td>Deployment <code>backend</code> (http-echo:8080) + ClusterIP Service <code>backend:80</code></td></tr>
+              <tr><td class="file"><code>11-frontend.yaml</code></td><td>ConfigMap с nginx.conf + Deployment <code>frontend</code> + ClusterIP Service <code>frontend:80</code></td></tr>
+              <tr><td class="file"><code>20-ingress.yaml</code></td><td>Ingress <code>shop.local</code> → Service <code>frontend</code> (backend не упомянут)</td></tr>
+              <tr><td class="file"><code>30-netpol-default-deny.yaml</code></td><td>запрет всего входящего и исходящего в namespace</td></tr>
+              <tr><td class="file"><code>31-netpol-frontend.yaml</code></td><td>вход во фронт только из <code>ingress-nginx</code>; выход только в backend и DNS</td></tr>
+              <tr><td class="file"><code>32-netpol-backend.yaml</code></td><td>вход в бэк только от <code>app=frontend</code>; выход только в DNS</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 0 -->
+    <section class="step">
+      <div class="stepnum">00</div>
+      <div class="body">
+        <h2>Кластер</h2>
+        <p>CNI по умолчанию в Minikube <strong>не исполняет NetworkPolicy</strong> — правила создадутся, но трафик фильтроваться не будет. Нужен Calico, и выбрать его можно только при создании кластера.</p>
+
+        <div class="cmd">
+          <pre><code>minikube delete
+minikube start --cni=calico
+minikube addons enable ingress</code></pre>
+          <div class="expect">Флаг <code>--cni</code> на живой кластер не накатывается — если кластер уже поднят без Calico, только пересоздавать.</div>
+        </div>
+
+        <div class="cmd">
+          <pre><code>kubectl -n kube-system rollout status ds/calico-node --timeout=180s
+kubectl -n ingress-nginx rollout status deploy/ingress-nginx-controller --timeout=180s</code></pre>
+          <div class="expect">Обе команды должны дойти до <code>successfully rolled out</code> прежде, чем применять манифесты.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1 -->
+    <section class="step">
+      <div class="stepnum">01</div>
+      <div class="body">
+        <h2>Развернуть</h2>
+        <div class="cmd">
+          <pre><code>kubectl apply -f .
+kubectl -n shop rollout status deploy/backend
+kubectl -n shop rollout status deploy/frontend</code></pre>
+          <div class="expect">12 строк <code>created</code>, затем два успешных rollout.</div>
+        </div>
+        <div class="cmd">
+          <pre><code>kubectl -n shop get pods,svc,ingress,netpol</code></pre>
+          <div class="expect">4 пода <code>Running</code>, два Service типа <code>ClusterIP</code>, один Ingress с непустым <code>ADDRESS</code> и четыре NetworkPolicy.</div>
+        </div>
+        <div class="key">
+          <div class="tag">если ADDRESS пустой</div>
+          <p>Ingress-объект есть, но контроллер его ещё не подхватил. Подожди rollout контроллера и проверь <code>kubectl -n shop describe ingress shop-ingress</code> — там будут события с причиной.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section class="step">
+      <div class="stepnum">02</div>
+      <div class="body">
+        <h2>Прописать hosts</h2>
+        <p>Ingress маршрутизирует по заголовку <code>Host</code>, поэтому имя <code>shop.local</code> должно резолвиться в IP узла на твоей машине.</p>
+        <div class="cmd">
+          <pre><code>minikube ip     <span class="c"># например 192.168.49.2</span></code></pre>
+        </div>
+        <div class="platform">Windows · PowerShell от администратора</div>
+        <pre><code>Add-Content C:\Windows\System32\drivers\etc\hosts "`n$(minikube ip) shop.local"</code></pre>
+        <div class="platform">Linux · macOS</div>
+        <pre><code>echo "$(minikube ip) shop.local" | sudo tee -a /etc/hosts</code></pre>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section class="step">
+      <div class="stepnum">03</div>
+      <div class="body">
+        <h2>Проверки</h2>
+        <p class="wide">Четыре сценария закрывают все требования задания: два должны работать, два — упереться в политику.</p>
+
+        <div class="checklist wide">
+          <div class="check ok">
+            <div class="verdict">Должно работать</div>
+            <pre><code>curl http://shop.local/</code></pre>
+            <div class="why">Фронтенд доступен снаружи — Ingress ведёт на него.</div>
+          </div>
+
+          <div class="check ok">
+            <div class="verdict">Должно работать</div>
+            <pre><code>curl http://shop.local/api</code></pre>
+            <div class="why">Тот же путь плюс проксирование фронт → бэк через ClusterIP. Ответ: <code>HELLO FROM BACKEND</code>.</div>
+          </div>
+
+          <div class="check blocked">
+            <div class="verdict">Должен быть timeout</div>
+            <pre><code>kubectl run probe -n default --rm -it \
+  --image=busybox:1.36 --restart=Never -- \
+  wget -qO- --timeout=3 \
+  http://backend.shop.svc.cluster.local/</code></pre>
+            <div class="why">Под из чужого namespace под селектор <code>app=frontend</code> не подходит — прямого внешнего доступа к бэкенду нет.</div>
+          </div>
+
+          <div class="check blocked">
+            <div class="verdict">Должен быть timeout</div>
+            <pre><code>kubectl run bp -n shop --rm -it \
+  --image=busybox:1.36 --restart=Never \
+  --labels app=backend -- \
+  wget -qO- --timeout=3 http://frontend/</code></pre>
+            <div class="why">Обратный трафик: Egress-политика бэкенда разрешает только DNS.</div>
+          </div>
+        </div>
+
+        <h3>Ещё две команды, если хочется убедиться изнутри</h3>
+        <div class="cmd">
+          <pre><code>kubectl -n shop exec deploy/frontend -- wget -qO- http://backend/
+curl -s -o /dev/null -w '%{http_code}\n' http://shop.local/backend</code></pre>
+          <div class="expect">Первая печатает ответ бэкенда, вторая — <code>404</code> от ingress-контроллера: пути к бэкенду в Ingress просто нет.</div>
+        </div>
+
+        <div class="key">
+          <div class="tag">как читать результат</div>
+          <p><strong>Timeout или зависание</strong> — пакет дропнут политикой, всё работает правильно.</p>
+          <p><strong>Connection refused</strong> — пакет дошёл до узла назначения, политика <em>не сработала</em>. Проверяй CNI (<code>kubectl -n kube-system get pods | grep calico</code>) и совпадение меток в селекторах.</p>
+        </div>
+
+        <div class="trap">
+          <div class="tag">почему не exec в backend</div>
+          <p>Напрашивающееся <code>kubectl -n shop exec deploy/backend -- wget ...</code> не сработает: <code>hashicorp/http-echo</code> — образ без shell и без wget, и ты получишь <code>executable file not found</code> вместо честного таймаута.</p>
+          <p>Поэтому обратный трафик проверяется отдельным busybox-подом, запущенным <strong>с меткой бэкенда</strong> — <code>--labels app=backend</code>. Под метку попадает — политика к нему применяется.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section class="step">
+      <div class="stepnum">04</div>
+      <div class="body">
+        <h2>Убрать за собой</h2>
+        <div class="cmd">
+          <pre><code>kubectl delete -f .</code></pre>
+          <div class="expect">Удаление namespace утягивает за собой всё его содержимое; строку <code>shop.local</code> из hosts нужно убрать руками.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="end">
+    <p>Теория, из которой выросли эти манифесты, — на странице «Ingress и NetworkPolicy» и в <code>HomeWork/theory.md</code>.</p>
+  </footer>
+
+</div>
+</body>
+</html>

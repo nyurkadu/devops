@@ -1,0 +1,5 @@
+# Port nginx listens on INSIDE the container — unrelated to the host-side
+# Docker port mapping. Step 1 published this container as -p 18080:8080
+# (host port 8080 was already taken by another process on this machine),
+# so this value stays 8080 regardless of which host port is used.
+http_port: 8080

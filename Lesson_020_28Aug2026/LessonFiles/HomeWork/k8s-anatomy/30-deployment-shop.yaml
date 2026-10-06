@@ -1,0 +1,134 @@
+# =============================================================================
+#  30-deployment-shop.yaml  —  Deployment "shop", версия 1 (nginx:alpine)
+# =============================================================================
+#
+#  ЧТО ЭТО ДЕЛАЕТ
+#  Создаёт Deployment с тремя репликами. Deployment НЕ управляет подами —
+#  он управляет ReplicaSet-ами, а те уже управляют подами. Три уровня:
+#
+#      Deployment  (версии и стратегия обновления)
+#          v
+#      ReplicaSet  (гарантия "ровно N подов по селектору")
+#          v
+#      Pod x3      (единственное, что существует физически)
+#
+#  ЧТО ПРОИЗОЙДЁТ ПРИ ПРИМЕНЕНИИ
+#  1. apiserver запишет объект Deployment в etcd;
+#  2. deployment-контроллер посчитает хеш от spec.template и создаст
+#     ReplicaSet с именем shop-<хеш>;
+#  3. replicaset-контроллер создаст 3 объекта Pod;
+#  4. планировщик проставит каждому spec.nodeName;
+#  5. kubelet на выбранных нодах запустит контейнеры.
+#  Пять шагов, четыре разных контроллера, ни одного прямого вызова.
+#
+#  ПРО pod-template-hash
+#  Хеш от spec.template попадает в имя ReplicaSet, в его селектор и в метки
+#  каждого пода. Меняете template -> меняется хеш -> Deployment не находит
+#  подходящего RS и создаёт НОВЫЙ. Отсюда два RS при обновлении (см. файл
+#  patches/32-patch-image-v2.yaml).
+#
+#  ИМПЕРАТИВНЫЙ ЭКВИВАЛЕНТ
+#      kubectl create deployment shop --image=nginx:alpine --replicas=3
+#
+#  ПРИМЕНИТЬ
+#      kubectl apply -f k8s-anatomy/30-deployment-shop.yaml
+#      kubectl rollout status deployment/shop -n lab
+#
+#  ПОСМОТРЕТЬ ВСЮ ИЕРАРХИЮ
+#      kubectl get deploy,rs,pods -n lab -l app=shop -o wide
+#
+#  ПРОВЕРИТЬ ЦИКЛ СВЕРКИ
+#      $pod = (kubectl get pods -n lab -l app=shop -o jsonpath='{.items[0].metadata.name}')
+#      kubectl delete pod $pod -n lab
+#      kubectl get pods -n lab -l app=shop
+#      # подов снова 3, один с новым именем и нулевым возрастом
+#
+#  УДАЛИТЬ
+#      kubectl delete -f k8s-anatomy/30-deployment-shop.yaml
+#      # каскадом уйдут и ReplicaSet, и поды — через ownerReferences
+#
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shop
+  namespace: lab
+  labels:
+    app: shop
+  annotations:
+    # CHANGE-CAUSE попадает в вывод kubectl rollout history и подписывает
+    # ревизию человеческим текстом. Без неё в истории будет <none>,
+    # как в оригинальной лекции — и понять, что за ревизия, невозможно.
+    kubernetes.io/change-cause: "v1: первичное развёртывание, nginx:alpine"
+spec:
+  replicas: 3                  # желаемое число подов; это ЧИСЛО, а не объект
+
+  # ---------------------------------------------------------------------------
+  #  Селектор Deployment. Иммутабелен, как и у ReplicaSet.
+  #  ВНИМАНИЕ: pod-template-hash сюда НЕ входит — его Deployment добавляет
+  #  только в селектор дочернего RS. Поэтому Service, отбирающий поды по
+  #  app=shop, во время обновления видит поды ОБЕИХ версий сразу.
+  # ---------------------------------------------------------------------------
+  selector:
+    matchLabels:
+      app: shop
+
+  # ---------------------------------------------------------------------------
+  #  strategy — как переходить со старой версии на новую.
+  #  Именно это поле отличает Deployment от ReplicaSet.
+  # ---------------------------------------------------------------------------
+  strategy:
+    type: RollingUpdate        # альтернатива — Recreate: погасить всё, потом поднять
+    rollingUpdate:
+      maxSurge: 1              # на сколько подов можно ПРЕВЫСИТЬ replicas.
+                               # 1 => в пике будет 4 пода вместо 3.
+      maxUnavailable: 0        # сколько подов можно потерять из числа готовых.
+                               # 0 => обновление без просадки ёмкости:
+                               # сначала поднять новый, дождаться Ready,
+                               # только потом гасить старый.
+
+  # Сколько старых ReplicaSet хранить с replicas: 0 ради возможного отката.
+  # Умолчание 10; здесь ограничиваем, чтобы kubectl get rs не зарастал.
+  revisionHistoryLimit: 3
+
+  # Сколько секунд под должен продержаться Ready, чтобы считаться "доступным".
+  # 0 = засчитывать сразу, как только проба прошла.
+  minReadySeconds: 0
+
+  template:
+    metadata:
+      labels:
+        app: shop              # обязано матчиться с selector выше.
+                               # pod-template-hash сюда добавит контроллер сам.
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine  # ВЕРСИЯ 1. Файл 32-... меняет ровно эту строку.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits:   { cpu: 150m, memory: 128Mi }
+
+          # Пока readinessProbe не прошла, IP пода не попадает в EndpointSlice.
+          # При maxUnavailable: 0 именно эта проба определяет темп обновления:
+          # старый под не погасят, пока новый не отчитается Ready.
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 2
+            periodSeconds: 5
+
+          # livenessProbe отвечает на другой вопрос: "не завис ли процесс".
+          # Провал liveness -> kubelet УБИВАЕТ контейнер и поднимает заново.
+          # Провал readiness -> под просто выводится из балансировки.
+          # Путать их опасно: слишком строгая liveness устраивает рестарт-шторм.
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+
+      terminationGracePeriodSeconds: 10

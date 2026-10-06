@@ -1,0 +1,26 @@
+---
+- name: Set OS-specific web server package name
+  set_fact:
+    my_webserver: "{{ 'apache2' if ansible_facts['os_family'] == 'Debian' else 'httpd' }}"
+
+- name: Update package cache (Debian)
+  apt:
+    update_cache: yes
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Update package cache (RedHat)
+  dnf:
+    update_cache: yes
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Install web server package
+  package:
+    name: "{{ my_webserver }}"
+    state: present
+
+- name: Deploy index.html from template
+  template:
+    src: index.html.j2
+    dest: /var/www/html/index.html
+    mode: '0644'
+  notify: restart webserver

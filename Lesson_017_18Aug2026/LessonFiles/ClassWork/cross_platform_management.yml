@@ -1,0 +1,30 @@
+     
+- name: Cross-Platform Web Server Setup
+  hosts: webservers
+  become: true
+
+  tasks:
+    - name: Install Apache on Debian/Ubuntu systems
+      apt:
+        name: apache2
+        state: present
+        update_cache: yes
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Install Apache on RedHat/CentOS systems
+      dnf:
+        name: httpd
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Ensure Apache is running (Debian)
+      service:
+        name: apache2
+        state: started
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Ensure Apache is running (RedHat)
+      service:
+        name: httpd
+        state: started
+      when: ansible_facts['os_family'] == "RedHat"

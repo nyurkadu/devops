@@ -1,0 +1,108 @@
+---
+# ============================================================================
+# СЦЕНАРИЙ 5: ТРАНЗАКЦИОННЫЙ ДЕПЛОЙ (block / rescue / always)
+# ----------------------------------------------------------------------------
+# Ситуация:  раскатываем новую версию. Если smoke-тест не прошёл - версия
+#            битая, нельзя оставлять её активной.
+# Критично?  ДА, но у нас есть план Б.
+# Реакция:   block   - взять бэкап версии, записать новую, прогнать smoke-тест
+#            rescue  - откатиться на предыдущую версию
+#            always  - снять lock и показать активную версию
+#
+# Сломать smoke-тест: -e smoke_port=9999 (порт, на котором никто не слушает).
+# ============================================================================
+- name: "S05 | Transactional deploy with rollback"
+  hosts: webservers
+  gather_facts: false
+
+  vars:
+    app_version: "1.4.2"
+    smoke_port: 80             # 9999 -> smoke-тест упадёт -> сработает rescue
+    release_dir: /opt/app/releases
+    lock_file: /var/run/deploy.lock
+
+  tasks:
+
+    - name: "5.0 Take the deploy lock"
+      ansible.builtin.copy:
+        dest: "{{ lock_file }}"
+        content: "locked by ansible\n"
+        mode: '0644'
+      changed_when: false      # служебный файл, не бизнес-изменение
+
+    - name: "5.1 Deploy transaction"
+      block:
+
+        - name: "Ensure release directory exists"
+          ansible.builtin.file:
+            path: "{{ release_dir }}"
+            state: directory
+            mode: '0755'
+
+        - name: "Keep the current version as previous"
+          ansible.builtin.shell: |
+            if [ -f {{ release_dir }}/current ]; then
+                cp {{ release_dir }}/current {{ release_dir }}/previous
+                echo "saved $(cat {{ release_dir }}/previous)"
+            else
+                echo "no previous release"
+            fi
+          register: backup_step
+          changed_when: "'saved' in backup_step.stdout"
+
+        - name: "Activate the new version"
+          ansible.builtin.copy:
+            dest: "{{ release_dir }}/current"
+            content: "{{ app_version }}\n"
+            mode: '0644'
+
+        - name: "Smoke test: application answers with HTTP 200"
+          ansible.builtin.uri:
+            url: "http://localhost:{{ smoke_port }}/"
+            status_code: 200
+            timeout: 5
+          register: smoke
+
+        - name: "Deploy succeeded"
+          ansible.builtin.debug:
+            msg: "Version {{ app_version }} is live, smoke test returned {{ smoke.status }}"
+
+      rescue:
+
+        - name: "Rescue: what exactly failed"
+          ansible.builtin.debug:
+            msg: >-
+              FAILED task: '{{ ansible_failed_task.name }}' |
+              error: {{ ansible_failed_result.msg | default('n/a') }}
+
+        - name: "Rescue: roll back to the previous version"
+          ansible.builtin.shell: |
+            if [ -f {{ release_dir }}/previous ]; then
+                cp {{ release_dir }}/previous {{ release_dir }}/current
+                echo "rolled_back to $(cat {{ release_dir }}/current)"
+            else
+                rm -f {{ release_dir }}/current
+                echo "removed_broken_release"
+            fi
+          register: rollback
+          changed_when: true
+
+        - name: "Rescue: verdict"
+          ansible.builtin.debug:
+            msg: "Deploy of {{ app_version }} cancelled -> {{ rollback.stdout | trim }}"
+
+      always:
+
+        - name: "Always: release the deploy lock"
+          ansible.builtin.file:
+            path: "{{ lock_file }}"
+            state: absent
+
+        - name: "Always: read the active version"
+          ansible.builtin.shell: "cat {{ release_dir }}/current 2>/dev/null || echo '<none>'"
+          register: active_version
+          changed_when: false
+
+        - name: "Always: final state"
+          ansible.builtin.debug:
+            msg: "Active version on {{ inventory_hostname }}: {{ active_version.stdout | trim }}"

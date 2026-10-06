@@ -1,0 +1,62 @@
+# ВХОД во фронтенд: только от ingress-nginx controller.
+# Контроллер живёт в чужом namespace и ходит напрямую по Pod IP, минуя ClusterIP,
+# поэтому селектор указывает на namespace ingress-nginx, а не на Service.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-frontend
+  namespace: shop
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              # метку kubernetes.io/metadata.name Kubernetes ставит сам (>= 1.22).
+              # проверить: kubectl get ns ingress-nginx --show-labels
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+---
+# ВЫХОД из фронтенда: только к бэкенду и в DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-egress
+  namespace: shop
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Egress
+  egress:
+    # 1) к бэкенду. Порт 8080 — это порт КОНТЕЙНЕРА (targetPort),
+    #    к моменту фильтрации ClusterIP:80 уже переписан kube-proxy в podIP:8080.
+    - to:
+        - podSelector:
+            matchLabels:
+              app: backend
+      ports:
+        - protocol: TCP
+          port: 8080
+    # 2) DNS — обязательно. Без этого правила под с Egress-политикой
+    #    перестаёт резолвить имена: "could not resolve host backend".
+    #    namespaceSelector и podSelector под ОДНИМ дефисом = логическое И.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

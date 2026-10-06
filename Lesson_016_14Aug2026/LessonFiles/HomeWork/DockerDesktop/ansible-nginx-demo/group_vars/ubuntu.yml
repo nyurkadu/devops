@@ -1,0 +1,4 @@
+# Applies only to hosts in the [ubuntu] inventory group.
+# Kept in its own file (separate from centos.yml) so a future package-name
+# difference between distros only means editing this file, not site.yml.
+nginx_package: nginx

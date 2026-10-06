@@ -1,0 +1,52 @@
+# ВХОД в бэкенд: только от подов с меткой app=frontend того же namespace.
+# Этим же правилом закрыт прямой внешний доступ: трафик снаружи приходит
+# от Envoy-прокси (namespace envoy-gateway-system), а он под селектор app=frontend не попадает.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-backend
+  namespace: shop
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# ВЫХОД из бэкенда: только DNS.
+# Обратный трафик backend -> frontend запрещён тем, что мы его НЕ разрешаем:
+# default-deny-all уже включил Egress на этих подах.
+# Ответы на запросы фронтенда при этом ходят: NetworkPolicy stateful (conntrack),
+# фильтруется установление соединения, а не отдельные пакеты сессии.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-egress-dns-only
+  namespace: shop
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

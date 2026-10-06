@@ -1,0 +1,21 @@
+# HTTPRoute — аналог секции rules в Ingress.
+# Снаружи доступен ТОЛЬКО фронтенд: в backendRefs один Service — frontend.
+# Service backend здесь не упомянут намеренно.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: shop-route
+  namespace: shop
+spec:
+  parentRefs:
+    - name: shop-gateway     # <- к какому Gateway цепляемся (namespace тот же => можно не указывать)
+  hostnames:
+    - shop.local             # <- аналог rules[].host в Ingress
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix # <- аналог pathType: Prefix
+            value: /
+      backendRefs:
+        - name: frontend     # <- Service frontend:80 в том же namespace
+          port: 80

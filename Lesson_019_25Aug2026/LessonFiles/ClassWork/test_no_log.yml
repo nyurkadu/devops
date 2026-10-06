@@ -1,0 +1,15 @@
+---
+- name: Demonstrate Output Masking
+  hosts: webservers
+  vars_files:
+    - group_vars/webservers/secrets.yml
+
+  tasks:
+    - name: Unsafe Task - Prints raw password to terminal logs
+      debug:
+        msg: "Exposed secret: {{ app_db_pass }}"
+
+    - name: Safe Task - Sensitive step with output protection
+      debug:
+        msg: "Exposed secret: {{ app_db_pass }}"
+      no_log: true   # Suppresses output printing in standard logs

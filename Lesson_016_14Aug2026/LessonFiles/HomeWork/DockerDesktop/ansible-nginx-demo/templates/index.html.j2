@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ app_name }} — {{ inventory_hostname }}</title>
+</head>
+<body>
+    <h1>{{ app_name }}</h1>
+    <h2>{{ inventory_hostname }}</h2>
+
+    <ul>
+        <li><strong>IP:</strong> {{ ansible_default_ipv4.address | default('n/a') }}</li>
+        <li><strong>OS:</strong> {{ ansible_distribution }} {{ ansible_distribution_version }} ({{ ansible_os_family }})</li>
+        <li><strong>RAM total:</strong> {{ ansible_memtotal_mb }} MB</li>
+    </ul>
+
+    <h3>Services</h3>
+    <ul>
+    {% for svc in services_list %}
+        <li>{{ svc }}</li>
+    {% endfor %}
+    </ul>
+</body>
+</html>

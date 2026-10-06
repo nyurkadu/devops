@@ -1,0 +1,7 @@
+# Shared across every host in inventory.ini (both node1-ubuntu and node2-centos).
+app_name: "Ansible Nginx Demo"
+
+# Looped over in templates/index.html.j2 via {% for svc in services_list %}.
+services_list:
+  - nginx
+  - sshd

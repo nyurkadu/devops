@@ -1,0 +1,53 @@
+# Тестовое веб-приложение: 2 реплики nginx.
+# Нужны две реплики, чтобы поды разъехались по разным нодам
+# и связность проверялась именно между нодами (через IPIP-туннель Calico).
+#
+# Императивный аналог:
+#   kubectl create deployment web --image=nginx:1.25 --replicas=2
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: default
+  labels:
+    app: web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      # Разводим реплики по разным нодам: без этого планировщик
+      # ставит оба пода на одну ноду и тест связности становится
+      # внутринодовым, то есть IPIP-туннель Calico не проверяется.
+      #
+      # maxSkew: 1 + DoNotSchedule = разница в числе подов между нодами
+      # не больше 1. При 2 репликах и 2 нодах это ровно по одному поду
+      # на ноду. Мягкий вариант (ScheduleAnyway) планировщик может
+      # проигнорировать — проверено, оба пода уехали на одну ноду.
+      #
+      # Обратная сторона: если рабочая нода недоступна, вторая реплика
+      # останется в Pending, а не сядет рядом с первой.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: web
+      containers:
+        - name: nginx
+          image: nginx:1.25
+          ports:
+            - name: http
+              containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi

@@ -1,0 +1,34 @@
+# Дополнение к deny-all: точечно разрешить доступ к подам web
+# только с подов, помеченных role=client, и только на порт 80/TCP.
+#
+# Применяется ВМЕСТЕ с 01-netpol-default-deny-ingress.yaml:
+# политики складываются по логике OR — трафик разрешён, если его
+# разрешает хотя бы одна политика.
+#
+# Проверка:
+#   kubectl exec client   -- wget -qO- --timeout=5 http://web    # пройдёт
+#   kubectl exec dnsutils -- wget -qO- --timeout=5 http://web    # тоже (role=client)
+#   под без метки role=client                                    # таймаут
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-client-to-web
+  namespace: default
+spec:
+  # К каким подам применяется политика (кого защищаем).
+  podSelector:
+    matchLabels:
+      app: web
+  policyTypes:
+    - Ingress
+  ingress:
+    # from: кому разрешаем. Здесь — подам с меткой role=client
+    # в том же namespace.
+    - from:
+        - podSelector:
+            matchLabels:
+              role: client
+      # ports: что именно разрешаем. Без этой секции разрешаются все порты.
+      ports:
+        - protocol: TCP
+          port: 80

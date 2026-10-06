@@ -1,0 +1,27 @@
+---
+- name: Create two nodes in Docker Desktop
+  hosts: local
+  gather_facts: false
+  vars:
+    docker_nodes:
+      - name: node1
+        port: 8081
+      - name: node2
+        port: 8082
+
+  tasks:
+    - name: Ensure node containers are running
+      community.docker.docker_container:
+        name: "{{ item.name }}"
+        image: nginx:alpine
+        state: started
+        restart_policy: unless-stopped
+        published_ports:
+          - "{{ item.port }}:80"
+      loop: "{{ docker_nodes }}"
+      register: node_results
+
+    - name: Show node status
+      debug:
+        msg: "{{ item.container.Name }} -> status: {{ item.container.State.Status }}, published on http://localhost:{{ item.item.port }}"
+      loop: "{{ node_results.results }}"

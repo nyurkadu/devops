@@ -1,0 +1,84 @@
+# =============================================================================
+#  11-pod-duo.yaml  —  Pod "duo": два контейнера, одна сетевая карта
+# =============================================================================
+#
+#  ЧТО ЭТО ДЕЛАЕТ
+#  Создаёт под из двух контейнеров: nginx и busybox. Файл существует ради
+#  одного доказательства: контейнеры одного пода делят СЕТЕВОЙ NAMESPACE,
+#  поэтому достукиваются друг до друга через localhost. Два обычных
+#  docker-контейнера так не умеют — у каждого свой netns и свой IP.
+#
+#  ЧТО ОБЩЕЕ, А ЧТО СВОЁ У КОНТЕЙНЕРОВ ПОДА
+#      ОБЩИЕ:  NET (один IP, один набор портов), IPC, UTS (hostname),
+#              cgroup-группа пода, тома из spec.volumes
+#      СВОИ:   MNT (своя файловая система из своего образа),
+#              PID (по умолчанию; можно объединить через shareProcessNamespace)
+#
+#  СЛЕДСТВИЕ, О КОТОРОМ ЗАБЫВАЮТ
+#  Порты внутри пода делятся между контейнерами. Два контейнера не могут
+#  слушать один и тот же порт — будет "address already in use", ровно как
+#  у двух процессов на одной машине.
+#
+#  СКОЛЬКО КОНТЕЙНЕРОВ БУДЕТ НА НОДЕ
+#  Три: pause + nginx + busybox. Формула всегда 1 pause + N из спеки.
+#
+#  ИМПЕРАТИВНОГО ЭКВИВАЛЕНТА НЕТ
+#  kubectl run умеет создать под только с ОДНИМ контейнером. Многоконтейнерный
+#  под описывается исключительно манифестом — это первый случай в лекции,
+#  где декларативный подход не имеет альтернативы.
+#
+#  ПРИМЕНИТЬ
+#      kubectl apply -f k8s-anatomy/11-pod-duo.yaml
+#      kubectl wait --for=condition=Ready pod/duo -n lab --timeout=90s
+#
+#  ДОКАЗАТЬ ОБЩИЙ NETNS
+#      # из busybox стучимся в nginx соседа по localhost
+#      kubectl exec duo -n lab -c shell -- wget -qO- --timeout=3 http://localhost:80
+#      # и убеждаемся, что IP у контейнера и у пода один и тот же
+#      kubectl exec duo -n lab -c shell -- ip -o addr show eth0
+#      kubectl get pod duo -n lab -o jsonpath='{.status.podIP}{"\n"}'
+#
+#  УДАЛИТЬ
+#      kubectl delete -f k8s-anatomy/11-pod-duo.yaml
+#
+# =============================================================================
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: duo
+  namespace: lab
+  labels:
+    app: duo
+spec:
+  containers:
+    # -------------------------------------------------------------------------
+    #  Контейнер 1 — сервер. Слушает 80 в ОБЩЕМ для пода сетевом namespace.
+    # -------------------------------------------------------------------------
+    - name: web
+      image: nginx:alpine
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 80
+      resources:
+        requests: { cpu: 50m, memory: 32Mi }
+        limits:   { cpu: 200m, memory: 128Mi }
+
+    # -------------------------------------------------------------------------
+    #  Контейнер 2 — клиент. Ничего не слушает, просто спит, чтобы в него
+    #  можно было зайти через kubectl exec. Ему НЕ нужно знать IP соседа:
+    #  сосед доступен по localhost, потому что netns один на двоих.
+    # -------------------------------------------------------------------------
+    - name: shell
+      image: busybox:1.36
+      imagePullPolicy: IfNotPresent
+      # command переопределяет ENTRYPOINT образа. Без него busybox запустил бы
+      # sh, немедленно получил EOF на stdin, завершился — и под ушёл бы в
+      # CrashLoopBackOff. Контейнер обязан держать процесс живым.
+      command: ["sh", "-c", "sleep 3600"]
+      resources:
+        requests: { cpu: 10m, memory: 16Mi }
+        limits:   { cpu: 100m, memory: 64Mi }
+
+  restartPolicy: Always
+  terminationGracePeriodSeconds: 5

@@ -1,0 +1,51 @@
+- name: Fault-Tolerant Web Deployment with Rollback
+  hosts: webservers
+  become: true
+
+  vars:
+    staging_dir: "/tmp/web_staging"
+    app_dir: "/var/www/html"
+
+  tasks:
+    - name: Main Deployment Block (Try)
+      block:
+        - name: Create temporary staging directory
+          file:
+            path: "{{ staging_dir }}"
+            state: directory
+
+        - name: Staging deployment artifact
+          copy:
+            content: "<h1>Version 2.0 - Production Ready</h1>"
+            dest: "{{ staging_dir }}/index.html"
+
+        # SIMULATE FAILURE: Intentionally copying to an invalid directory to trigger rescue
+        - name: Deploy artifact to application directory
+          copy:
+            src: "{{ staging_dir }}/index.html"
+            dest: "{{ app_dir }}/index.html"
+            remote_src: true
+
+        - name: Confirm successful deployment
+          debug:
+            msg: "Deployment succeeded without issues!"
+
+      rescue:
+        - name: CRITICAL ERROR - Triggering Automated Rollback
+          debug:
+            msg: "Deployment failed! Rolling back to emergency maintenance page..."
+
+        - name: Deploy emergency maintenance landing page
+          copy:
+            content: "<h1 style='color:red;'>System Under Emergency Maintenance</h1>"
+            dest: "{{ app_dir }}/index.html"
+
+      always:
+        - name: CLEANUP - Remove temporary staging directory
+          file:
+            path: "{{ staging_dir }}"
+            state: absent
+
+        - name: Log execution timestamp
+          debug:
+            msg: "Deployment workflow finished execution at {{ ansible_date_time.iso8601 }}"

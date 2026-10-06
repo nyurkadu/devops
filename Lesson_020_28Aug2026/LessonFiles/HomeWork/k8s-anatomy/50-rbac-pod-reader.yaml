@@ -1,0 +1,115 @@
+# =============================================================================
+#  50-rbac-pod-reader.yaml  —  ServiceAccount + Role + RoleBinding
+# =============================================================================
+#
+#  ЧТО ЭТО ДЕЛАЕТ
+#  Создаёт три связанных объекта в одном файле: техническую учётную запись,
+#  список разрешений и связку между ними.
+#
+#  ПОЧЕМУ ТРИ ОБЪЕКТА В ОДНОМ ФАЙЛЕ
+#  YAML позволяет складывать несколько документов через разделитель "---".
+#  kubectl применит их по порядку. Для логически неразрывного набора это
+#  правильнее, чем три файла: разрешение без связки бесполезно, связка без
+#  учётной записи не работает.
+#
+#  ГЛАВНОЕ ПРО RBAC
+#  Это ЕДИНСТВЕННЫЙ тип правил в лекции, у которого НЕТ физического
+#  воплощения вообще. Ни строчки в ядре, ни одного процесса, ни единого
+#  пакета в сети. apiserver просто читает Role и RoleBinding из etcd и
+#  сравнивает со списком в памяти: "да" или "нет". Проверка происходит
+#  ДО того, как запрос вообще что-то сделает.
+#
+#  ЧЕГО ЗДЕСЬ НЕТ: ЗАПРЕТОВ
+#  В RBAC нет правил "deny". Модель чисто аддитивная: по умолчанию запрещено
+#  всё, а правила только РАЗРЕШАЮТ. Отобрать доступ можно единственным
+#  способом — удалить RoleBinding.
+#
+#  ROLE ПРОТИВ CLUSTERROLE
+#  Role действует в пределах одного namespace. Для ресурсов без namespace
+#  (сами Namespace, Node, PersistentVolume) нужен ClusterRole. Здесь именно
+#  Role: она видна только в lab.
+#
+#  ИМПЕРАТИВНЫЙ ЭКВИВАЛЕНТ
+#      kubectl create serviceaccount viewer -n lab
+#      kubectl create role pod-reader --verb=get,list,watch --resource=pods -n lab
+#      kubectl create rolebinding viewer-can-read --role=pod-reader \
+#        --serviceaccount=lab:viewer -n lab
+#
+#  ПРИМЕНИТЬ
+#      kubectl apply -f k8s-anatomy/50-rbac-pod-reader.yaml
+#
+#  ПОСМОТРЕТЬ САМО ПОЛЕ rules
+#      kubectl get role pod-reader -n lab -o jsonpath='{.rules}' | ConvertFrom-Json | Format-List
+#
+#  ПРОВЕРИТЬ РЕШЕНИЕ APISERVER — БЕЗ ЕДИНОГО ПАКЕТА В СЕТИ
+#      kubectl auth can-i list   pods --as=system:serviceaccount:lab:viewer -n lab   # yes
+#      kubectl auth can-i delete pods --as=system:serviceaccount:lab:viewer -n lab   # no
+#      kubectl auth can-i list   pods --as=system:serviceaccount:lab:viewer -n default  # no
+#      # последняя проверка показывает границу Role: в чужом namespace прав нет
+#
+#  УДАЛИТЬ
+#      kubectl delete -f k8s-anatomy/50-rbac-pod-reader.yaml
+#
+# =============================================================================
+
+# --- ДОКУМЕНТ 1: КТО --------------------------------------------------------
+# ServiceAccount — учётная запись для ПРОЦЕССА, а не для человека.
+# Пода без ServiceAccount не бывает: если не указать, будет назначен "default".
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: viewer
+  namespace: lab
+# Полное имя этой учётки в системе прав выглядит так:
+#     system:serviceaccount:lab:viewer
+#              ^ префикс     ^ns  ^имя
+# Именно эту строку понимает флаг --as у kubectl auth can-i.
+
+---
+# --- ДОКУМЕНТ 2: ЧТО МОЖНО --------------------------------------------------
+# Role — только СПИСОК разрешений. Она ни к кому не привязана и сама по себе
+# не даёт никому ничего. Это справочник, а не назначение.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader
+  namespace: lab
+rules:
+  - apiGroups: [""]            # "" — это core-группа (Pod, Service, ConfigMap...).
+                               # Для Deployment было бы ["apps"],
+                               # для NetworkPolicy — ["networking.k8s.io"].
+    resources: ["pods"]        # имена ресурсов во МНОЖЕСТВЕННОМ числе,
+                               # ровно как в URL apiserver: /api/v1/namespaces/lab/pods
+    verbs: ["get", "list", "watch"]
+                               # get   — прочитать один объект по имени
+                               # list  — получить список
+                               # watch — подписаться на изменения (long poll).
+                               # Именно на этих трёх глаголах построена работа
+                               # ВСЕХ контроллеров Kubernetes.
+                               # Отсутствуют: create, update, patch, delete —
+                               # значит, они запрещены. Отдельного "deny" нет.
+
+  # Второе правило — доступ к логам. Логи это ПОДРЕСУРС пода,
+  # отдельный от самого пода; без этой строки kubectl logs не сработает.
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+
+---
+# --- ДОКУМЕНТ 3: СВЯЗКА -----------------------------------------------------
+# RoleBinding соединяет "кто" и "что можно". Без него ни ServiceAccount,
+# ни Role не значат ничего.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: viewer-can-read
+  namespace: lab
+subjects:                      # КОМУ выдаём. Может быть несколько.
+  - kind: ServiceAccount       # варианты: ServiceAccount | User | Group
+    name: viewer
+    namespace: lab
+roleRef:                       # ЧТО выдаём. Всегда ровно один, поле иммутабельно:
+                               # чтобы сменить роль, RoleBinding надо пересоздать.
+  kind: Role                   # Role (из этого namespace) | ClusterRole (глобальная)
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io

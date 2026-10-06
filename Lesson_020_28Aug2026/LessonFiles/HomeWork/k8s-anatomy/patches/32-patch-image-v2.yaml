@@ -1,0 +1,61 @@
+# =============================================================================
+#  32-patch-image-v2.yaml  —  rolling update: смена образа на nginx:1.27-alpine
+# =============================================================================
+#
+#  ЧТО ЭТО ДЕЛАЕТ
+#  Меняет образ контейнера в spec.template. В отличие от 31-patch-replicas.yaml
+#  здесь затрагивается ШАБЛОН ПОДА — и это меняет всё поведение.
+#
+#  ЧТО ПРОИЗОЙДЁТ ПО ШАГАМ
+#  1. Deployment пересчитает хеш от нового spec.template;
+#  2. не найдёт ReplicaSet с таким хешем и создаст НОВЫЙ: shop-<новый_хеш>;
+#  3. по правилам strategy (maxSurge: 1, maxUnavailable: 0) начнёт переливать
+#     реплики: +1 новому, дождаться Ready, -1 старому, повторить;
+#  4. старый RS останется с replicas: 0 — как сохранённая ревизия для отката.
+#
+#  ПОЧЕМУ ReplicaSet НЕЛЬЗЯ БЫЛО ПРОСТО ОТРЕДАКТИРОВАТЬ
+#  Поле selector у ReplicaSet иммутабельно (apps/v1). Селектор — единственная
+#  связь RS с подами; поменяй его на живом объекте, и RS мгновенно потеряет
+#  свои поды или захватит чужие. Поэтому версионирование сделано через
+#  СОЗДАНИЕ нового объекта, а не мутацию старого.
+#
+#  ИМПЕРАТИВНЫЙ ЭКВИВАЛЕНТ
+#      kubectl set image deployment/shop nginx=nginx:1.27-alpine -n lab
+#
+#  ПОДГОТОВКА — ЧТОБЫ УВИДЕТЬ ПРОЦЕСС, А НЕ РЕЗУЛЬТАТ
+#  В ОТДЕЛЬНОМ окне PowerShell запустите наблюдение, и только потом патчьте:
+#      kubectl get pods -n lab -l app=shop -w
+#
+#  ПРИМЕНИТЬ
+#      kubectl patch deployment shop -n lab --patch-file k8s-anatomy/patches/32-patch-image-v2.yaml
+#      kubectl rollout status deployment/shop -n lab
+#
+#  УВИДЕТЬ ДВА REPLICASET
+#      kubectl get rs -n lab -l app=shop -o custom-columns='RS:.metadata.name,HASH:.metadata.labels.pod-template-hash,DESIRED:.spec.replicas,READY:.status.readyReplicas,IMAGE:.spec.template.spec.containers[0].image'
+#
+#      # RS                HASH        DESIRED  READY   IMAGE
+#      # shop-56964ffbbb   56964ffbbb  0        <none>  nginx:alpine        <- старый
+#      # shop-74dc89d55f   74dc89d55f  6        6       nginx:1.27-alpine   <- новый
+#
+#  ОТКАТ
+#      kubectl rollout history deployment/shop -n lab
+#      kubectl rollout undo deployment/shop -n lab
+#      # откат мгновенный: это не пересборка, а обмен значениями replicas
+#      # между двумя уже существующими объектами
+#
+# =============================================================================
+
+metadata:
+  annotations:
+    # Перезаписываем подпись ревизии, чтобы rollout history был читаемым.
+    kubernetes.io/change-cause: "v2: образ nginx:alpine -> nginx:1.27-alpine"
+spec:
+  template:
+    spec:
+      containers:
+        # ВАЖНО: в strategic merge patch список containers объединяется
+        # по ключу name. Указываем только name и то поле, что меняем;
+        # порты, пробы и лимиты из 30-deployment-shop.yaml сохранятся.
+        # Если бы слияние шло по индексу, этот патч стёр бы всё остальное.
+        - name: nginx
+          image: nginx:1.27-alpine

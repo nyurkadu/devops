@@ -1,0 +1,79 @@
+# =============================================================================
+#  80-pod-probe.yaml  —  постоянный под-клиент для всех проверок лекции
+# =============================================================================
+#
+#  ЧТО ЭТО ДЕЛАЕТ
+#  Поднимает долгоживущий busybox с меткой role=probe. Это рабочее место
+#  ВНУТРИ кластера: отсюда проверяют DNS, ClusterIP и действие NetworkPolicy.
+#
+#  ЧЕМ ЭТО ЛУЧШЕ, ЧЕМ kubectl run --rm -it
+#  Одноразовый под из kubectl run:
+#    * каждый раз качает образ заново и стартует 3-5 секунд;
+#    * получает СЛУЧАЙНЫЕ метки (точнее, метку run=<имя>), поэтому под
+#      NetworkPolicy с podSelector не попадает — и проверить разрешающее
+#      правило им невозможно;
+#    * исчезает вместе со всей историей команд.
+#  Постоянный под лишён всех трёх недостатков: метка задана явно,
+#  запуск мгновенный, состояние сохраняется между командами.
+#
+#  МЕТКА role=probe — НЕ УКРАШЕНИЕ
+#  Именно по ней файл 61-networkpolicy-allow-probe.yaml пропускает трафик.
+#  Уберите метку — и тот же под перестанет проходить сквозь политику.
+#
+#  ПРИМЕНИТЬ
+#      kubectl apply -f k8s-anatomy/80-pod-probe.yaml
+#      kubectl wait --for=condition=Ready pod/probe -n lab --timeout=90s
+#
+#  ЗАЙТИ ВНУТРЬ
+#      kubectl exec -it probe -n lab -- sh
+#
+#  ПРОВЕРКИ ОДНОЙ СТРОКОЙ, БЕЗ ВХОДА В ПОД
+#      # DNS: как имя сервиса превращается в ClusterIP
+#      kubectl exec probe -n lab -- nslookup shop-svc
+#
+#      # HTTP: тот же адрес, что недостижим с Windows-хоста
+#      kubectl exec probe -n lab -- wget -qO- --timeout=4 http://shop-svc
+#
+#      # полное FQDN-имя сервиса
+#      kubectl exec probe -n lab -- nslookup shop-svc.lab.svc.cluster.local
+#
+#      # какой ConfigMap DNS подсунут поду
+#      kubectl exec probe -n lab -- cat /etc/resolv.conf
+#
+#  ЧТО УВИДИТЕ В /etc/resolv.conf
+#      nameserver 10.96.0.10                    <- ClusterIP сервиса kube-dns
+#      search lab.svc.cluster.local svc.cluster.local cluster.local
+#  Строка search объясняет, почему резолвится короткое "shop-svc": имя
+#  последовательно дополняется суффиксами, пока не найдётся запись.
+#
+#  РАСПРОСТРАНЁННАЯ ОШИБКА ПРИ ОТЛАДКЕ
+#  ClusterIP НЕ отвечает на ping — ICMP через правила DNAT не проходит.
+#  Проверять надо TCP-запросом (wget/curl), а не пингом. "Не пингуется"
+#  не означает "не работает".
+#
+#  УДАЛИТЬ
+#      kubectl delete -f k8s-anatomy/80-pod-probe.yaml
+#
+# =============================================================================
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: probe
+  namespace: lab
+  labels:
+    role: probe                # <- по этой метке пропускает файл 61
+spec:
+  containers:
+    - name: shell
+      image: busybox:1.36
+      imagePullPolicy: IfNotPresent
+      # Держим процесс живым. Без этого контейнер завершится сразу после
+      # старта и под уйдёт в CrashLoopBackOff: контейнер обязан иметь
+      # процесс, который не выходит.
+      command: ["sh", "-c", "sleep infinity"]
+      resources:
+        requests: { cpu: 10m, memory: 16Mi }
+        limits:   { cpu: 100m, memory: 64Mi }
+  restartPolicy: Always
+  terminationGracePeriodSeconds: 2

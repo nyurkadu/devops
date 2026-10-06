@@ -1,0 +1,46 @@
+---
+# ============================================================================
+# СЦЕНАРИЙ 6: ВАЛИДАЦИЯ ВХОДНЫХ ДАННЫХ (assert / fail)
+# ----------------------------------------------------------------------------
+# Ситуация:  инженер запускает деплой, но забыл указать версию или окружение.
+# Критично?  ДА. Дешевле упасть до первого изменения, чем на середине.
+# Реакция:   assert - проверка предусловий; fail - политика для prod.
+#
+# Запуск:  -e app_version=1.4.2 -e target_env=prod -e change_ticket=CHG-1234
+# ============================================================================
+- name: "S06 | Validate input before touching anything"
+  hosts: webservers
+  gather_facts: false
+
+  vars:
+    allowed_envs:
+      - dev
+      - stage
+      - prod
+
+  tasks:
+
+    - name: "6.1 Preconditions must hold"
+      ansible.builtin.assert:
+        that:
+          - app_version is defined
+          - app_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+          - target_env is defined
+          - target_env in allowed_envs
+        fail_msg: >-
+          Bad parameters. Need -e app_version=X.Y.Z and
+          -e target_env=<{{ allowed_envs | join('|') }}>
+        success_msg: "Parameters are valid"
+
+    - name: "6.2 Production deploy requires an approved change ticket"
+      ansible.builtin.fail:
+        msg: "Deploy to prod requires -e change_ticket=CHG-XXXX"
+      when:
+        - target_env == 'prod'
+        - change_ticket is not defined
+
+    - name: "6.3 Cleared for deploy"
+      ansible.builtin.debug:
+        msg: >-
+          Deploying {{ app_version }} to {{ target_env }}
+          (ticket: {{ change_ticket | default('not required') }})

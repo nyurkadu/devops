@@ -1,0 +1,21 @@
+
+Теоретическая часть:
+Loops / Iterations: loop, item, lists, dictionaries, complex loops
+Условия: when, ==, !=, in, not in, проверки по ansible_facts / ОС
+Ternary operator: ternary(true_value, false_value)
+Error Handling / обработка ошибок:
+ignore_errors — продолжить выполнение после ошибки
+failed_when — задать, что считать ошибкой (создание кастомных ошибок)
+changed_when — задать, что считать изменением
+block / rescue / always ≈ try / catch / finally
+block — основные задачи
+rescue — действия при ошибке внутри block
+always — действия, которые выполняются всегда
+
+Практика:
+Придумать несколько сценариев обработки ошибок на уровне бизнес-логики и реализовать их в Ansible с помощью ignore_errors, failed_when и changed_when
+произошла ситуация
+↓
+решаем, критична она или нет
+↓
+Ansible реагирует нужным способом

@@ -1,0 +1,40 @@
+---
+- name: Pre-flight system maintenance checks
+  hosts: production
+  become: true
+  serial: 1
+
+  tasks:
+    - name: Update package cache (Debian)
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Install system diagnostic utilities
+      package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - curl
+        - htop
+        - unzip
+
+    - block:
+        - name: Check available disk space on root filesystem
+          shell: df --output=pcent / | tail -1 | tr -dc '0-9'
+          register: disk_usage
+          changed_when: false
+          failed_when: disk_usage.stdout | int > 80
+
+      rescue:
+        - name: Warn about disk threshold
+          debug:
+            msg: "Disk usage threshold exceeded! Triggering automated log cleanup..."
+
+      always:
+        - name: Append execution timestamp to maintenance log
+          lineinfile:
+            path: /tmp/maintenance.log
+            line: "Maintenance check executed at {{ ansible_date_time.iso8601 }}"
+            create: true

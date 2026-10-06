@@ -1,0 +1,67 @@
+# ВХОД во фронтенд: только от Envoy-прокси нашего Gateway.
+# Прокси живёт в чужом namespace (envoy-gateway-system) и ходит напрямую по Pod IP,
+# минуя ClusterIP, поэтому селектор указывает на namespace + метки подов прокси.
+# Единственное отличие от урока с Ingress: там был namespace ingress-nginx.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-frontend
+  namespace: shop
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # namespaceSelector И podSelector под ОДНИМ дефисом = логическое И:
+        # "поды с такими метками в namespace envoy-gateway-system".
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+          podSelector:
+            matchLabels:
+              # Envoy Gateway сам вешает эти метки на поды прокси конкретного Gateway.
+              # проверить: kubectl -n envoy-gateway-system get pods --show-labels
+              gateway.envoyproxy.io/owning-gateway-namespace: shop
+              gateway.envoyproxy.io/owning-gateway-name: shop-gateway
+      ports:
+        - protocol: TCP
+          port: 80
+---
+# ВЫХОД из фронтенда: только к бэкенду и в DNS. Без изменений относительно урока с Ingress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-egress
+  namespace: shop
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Egress
+  egress:
+    # 1) к бэкенду. Порт 8080 — порт КОНТЕЙНЕРА (targetPort):
+    #    к моменту фильтрации ClusterIP:80 уже переписан kube-proxy в podIP:8080.
+    - to:
+        - podSelector:
+            matchLabels:
+              app: backend
+      ports:
+        - protocol: TCP
+          port: 8080
+    # 2) DNS — обязательно, иначе "could not resolve host backend".
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

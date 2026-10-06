@@ -1,0 +1,110 @@
+# =============================================================================
+#  70-ingress-shop.yaml  —  Ingress: правило как конфиг чужой программы
+# =============================================================================
+#
+#  ЧТО ЭТО ДЕЛАЕТ
+#  Описывает HTTP-маршрут: запросы на хост shop.local отправлять в сервис
+#  shop-svc на порт 80.
+#
+#  ГЛАВНОЕ: KUBERNETES ЭТИ ПРАВИЛА НЕ ИСПОЛНЯЕТ
+#  Ingress — это просто запись в etcd. Читает её ingress-контроллер: обычный
+#  под с nginx или envoy внутри. Он транслирует объект в свой конфиг и
+#  перезагружает себя. Физически "правило Ingress" — это блок server/location
+#  в файле /etc/nginx/nginx.conf ВНУТРИ ЧУЖОГО ПОДА.
+#
+#  БЕЗ КОНТРОЛЛЕРА ЭТОТ ФАЙЛ НЕ ДЕЛАЕТ НИЧЕГО
+#  Ровно та же ситуация, что с NetworkPolicy без поддерживающего CNI:
+#  объект создастся, kubectl get его покажет, трафик никуда не пойдёт.
+#  Разница лишь в том, что у Ingress ЕСТЬ поле status: если ADDRESS пуст,
+#  значит контроллер объект не подхватил. У NetworkPolicy и такой подсказки нет.
+#
+#  ДВЕ СУЩНОСТИ, КОТОРЫЕ ПОСТОЯННО ПУТАЮТ
+#      Ingress            — объект с правилами (этот файл)
+#      Ingress Controller — под, который эти правила исполняет
+#  Первое без второго бессмысленно.
+#
+#  ПОДГОТОВКА — ПОДНЯТЬ КОНТРОЛЛЕР
+#      minikube addons enable ingress -p calico
+#      kubectl get pods -n ingress-nginx
+#      # дождаться, пока под контроллера станет Running
+#
+#  ИМПЕРАТИВНЫЙ ЭКВИВАЛЕНТ
+#      kubectl create ingress shop-ing --rule="shop.local/*=shop-svc:80" -n lab
+#
+#  ПРИМЕНИТЬ
+#      kubectl apply -f k8s-anatomy/70-ingress-shop.yaml
+#      kubectl get ingress -n lab
+#      # в колонке ADDRESS должен появиться IP — признак, что контроллер
+#      # объект увидел и обработал
+#
+#  НАЙТИ СВОЁ ПРАВИЛО ВНУТРИ ЧУЖОГО ПОДА
+#      $ic = (kubectl get pods -n ingress-nginx `
+#             -l app.kubernetes.io/component=controller `
+#             -o jsonpath='{.items[0].metadata.name}')
+#      kubectl exec -n ingress-nginx $ic -- cat /etc/nginx/nginx.conf |
+#        Select-String -Pattern "shop" -Context 2,6
+#
+#      # найдёте примерно это:
+#      #   server {
+#      #       server_name shop.local ;
+#      #       location / {
+#      #           set $proxy_upstream_name "lab-shop-svc-80";
+#      # Ваше правило превратилось в обычный кусок nginx-конфига.
+#      # Kubernetes здесь только доставил данные — маршрутизирует nginx.
+#
+#  ПРОВЕРИТЬ МАРШРУТ СНАРУЖИ
+#      $ip = (minikube ip -p calico)
+#      curl.exe -H "Host: shop.local" http://$ip/
+#      # заголовок Host обязателен: правило матчится по имени хоста,
+#      # а DNS-записи shop.local не существует
+#
+#  УДАЛИТЬ
+#      kubectl delete -f k8s-anatomy/70-ingress-shop.yaml
+#
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shop-ing
+  namespace: lab
+  # Аннотации — способ передать контроллеру настройки, которых нет в
+  # стандартной схеме Ingress. Префикс определяет, какой контроллер их поймёт;
+  # для другого контроллера эти же строки будут просто игнорироваться.
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  # ---------------------------------------------------------------------------
+  #  ingressClassName — КАКОЙ контроллер должен взять этот объект.
+  #  В кластере их может быть несколько (nginx, traefik, haproxy).
+  #  Без этого поля объект подхватит контроллер, помеченный классом
+  #  по умолчанию, — а если такого нет, не подхватит НИКТО, и ADDRESS
+  #  останется пустым. Это самая частая причина "ingress не работает".
+  #      kubectl get ingressclass
+  # ---------------------------------------------------------------------------
+  ingressClassName: nginx
+
+  rules:
+    - host: shop.local         # правило сработает, только если в HTTP-запросе
+                               # заголовок Host равен этому значению.
+                               # Убрать host — правило станет ловить всё подряд.
+      http:
+        paths:
+          - path: /
+            # -----------------------------------------------------------------
+            #  pathType обязателен. Три значения:
+            #    Prefix                  — совпадение по префиксу пути
+            #                              (/ поймает вообще всё)
+            #    Exact                   — полное совпадение строки
+            #    ImplementationSpecific  — как решит контроллер; у nginx это
+            #                              включает регулярные выражения
+            # -----------------------------------------------------------------
+            pathType: Prefix
+            backend:
+              service:
+                name: shop-svc # ссылка на Service ИЗ ЭТОГО ЖЕ namespace.
+                               # Ingress не умеет ходить в чужой namespace —
+                               # обычная причина ошибки 503.
+                port:
+                  number: 80   # порт Service (spec.ports.port), НЕ порт пода.
+                               # Можно сослаться и по имени: name: http

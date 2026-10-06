@@ -1,0 +1,13 @@
+# Фундамент изоляции: пустой podSelector = ВСЕ поды namespace shop.
+# Включает и Ingress, и Egress => всё запрещено, пока не разрешено явно
+# следующими политиками. Политики только СКЛАДЫВАЮТСЯ (OR), deny-правил в API нет.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: shop
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress

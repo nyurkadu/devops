@@ -1,0 +1,24 @@
+user {% if ansible_os_family == "Debian" %}www-data{% else %}nginx{% endif %};
+worker_processes auto;
+pid /run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+
+    server {
+        listen {{ http_port }};
+        server_name {{ inventory_hostname }};
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ =404;
+        }
+    }
+}

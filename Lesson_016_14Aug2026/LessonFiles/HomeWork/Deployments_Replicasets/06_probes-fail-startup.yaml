@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: probes-fail-startup
+  labels:
+    app: probes-fail-startup
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: probes-fail-startup
+  template:
+    metadata:
+      labels:
+        app: probes-fail-startup
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+          # startup заведомо не проходит: такого пути нет -> 404
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          startupProbe:
+            httpGet:
+              path: /no-such-startup
+              port: 80
+            periodSeconds: 2
+            failureThreshold: 5      # ~10 c и контейнер будет убит
+          # liveness тоже заведомо провальная и очень агрессивная:
+          # если бы она работала, контейнер умер бы через 1 секунду
+          livenessProbe:
+            httpGet:
+              path: /no-such-live
+              port: 80
+            periodSeconds: 1
+            failureThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 2

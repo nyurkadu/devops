@@ -1,0 +1,3 @@
+# Port nginx listens on inside the container. Step 1 published this one as
+# -p 8081:8081 (host port free, so host and container ports match 1:1).
+http_port: 8081

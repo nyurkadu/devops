@@ -1,0 +1,31 @@
+---
+- name: User Management with Complex Loops
+  hosts: webservers
+  become: true
+
+  vars:
+    roles:
+      role1: admin
+      role2: editor
+    developers:
+      - name: alice
+        group: devops
+        role: "{{ roles.role1 }}"
+      - name: bob
+        group: developers
+        role: "{{ roles.role2 }}"
+
+  tasks:
+    - name: Ensure target user groups exist
+      group:
+        name: "{{ item.group }}"
+        state: present
+      loop: "{{ developers }}"
+
+    - name: Create developer accounts
+      user:
+        name: "{{ item.name }}"
+        group: "{{ item.group }}"
+        shell: /bin/bash
+        state: present
+      loop: "{{ developers }}"

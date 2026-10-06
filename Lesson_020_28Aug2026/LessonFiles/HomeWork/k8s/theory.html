@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Конспект Lesson 020: путь трафика через Ingress, роль меток и правила изоляции NetworkPolicy.">
+<style>
+  html { -webkit-text-size-adjust: 100%; }
+  body, h1, h2, h3, p, ul, ol, figure, pre, blockquote { margin: 0; }
+  ul, ol { padding: 0; }
+  img, svg { max-width: 100%; }
+  table { border-spacing: 0; }
+</style>
+<title>Ingress и NetworkPolicy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;600;700&family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap">
+
+<style>
+  :root {
+    --bg:          #F5F7F9;
+    --surface:     #FFFFFF;
+    --surface-2:   #EBEFF4;
+    --ink:         #121A21;
+    --muted:       #5A6874;
+    --line:        #D8DFE7;
+    --line-soft:   #E7ECF1;
+    --accent:      #1C6E9C;
+    --accent-soft: #E2EEF6;
+    --allow:       #0E7350;
+    --allow-soft:  #DFF0E8;
+    --deny:        #AC3F24;
+    --deny-soft:   #F8E7E1;
+    --code-bg:     #EFF3F7;
+
+    --f-display: "Bitter", Georgia, "Times New Roman", serif;
+    --f-body:    "Golos Text", "Segoe UI", system-ui, sans-serif;
+    --f-mono:    "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+
+    --measure: 66ch;
+    --radius: 8px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:          #0E1318;
+      --surface:     #151B22;
+      --surface-2:   #1C232B;
+      --ink:         #E2E8EE;
+      --muted:       #93A1AD;
+      --line:        #2A333C;
+      --line-soft:   #212931;
+      --accent:      #6FB4E0;
+      --accent-soft: #16303F;
+      --allow:       #4EBE93;
+      --allow-soft:  #103226;
+      --deny:        #E8845F;
+      --deny-soft:   #35190F;
+      --code-bg:     #11171D;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg:          #0E1318;
+    --surface:     #151B22;
+    --surface-2:   #1C232B;
+    --ink:         #E2E8EE;
+    --muted:       #93A1AD;
+    --line:        #2A333C;
+    --line-soft:   #212931;
+    --accent:      #6FB4E0;
+    --accent-soft: #16303F;
+    --allow:       #4EBE93;
+    --allow-soft:  #103226;
+    --deny:        #E8845F;
+    --deny-soft:   #35190F;
+    --code-bg:     #11171D;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  a { color: var(--accent); }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+
+  /* ---------- header ---------- */
+
+  header.masthead {
+    padding: 72px 0 40px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(34px, 6vw, 54px);
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    max-width: 18ch;
+  }
+  .deck {
+    max-width: var(--measure);
+    font-size: 19px;
+    color: var(--muted);
+  }
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-family: var(--f-mono);
+    font-size: 12px;
+  }
+  .facts span {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 100px;
+    padding: 4px 12px;
+    color: var(--muted);
+  }
+
+  /* ---------- section scaffold ---------- */
+
+  main { display: flex; flex-direction: column; }
+
+  section.step {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0 28px;
+    padding: 52px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  @media (min-width: 860px) {
+    section.step { grid-template-columns: 64px minmax(0, 1fr); }
+  }
+
+  .stepnum {
+    font-family: var(--f-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    padding-top: 10px;
+    letter-spacing: 0.04em;
+  }
+  .stepnum::after {
+    content: "";
+    display: block;
+    width: 26px;
+    height: 1px;
+    background: var(--line);
+    margin-top: 12px;
+  }
+  @media (max-width: 859px) {
+    .stepnum { margin-bottom: 8px; }
+    .stepnum::after { display: none; }
+  }
+
+  .body { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  .body > * { max-width: var(--measure); }
+  .body > figure, .body > .wide { max-width: 100%; }
+
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: clamp(24px, 3.4vw, 32px);
+    line-height: 1.18;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--f-body);
+    font-weight: 600;
+    font-size: 18px;
+    margin-top: 8px;
+    text-wrap: balance;
+  }
+  p { margin: 0; }
+  strong { font-weight: 600; }
+  em { font-style: normal; color: var(--muted); }
+
+  ul, ol { margin: 0; padding-left: 1.25em; display: flex; flex-direction: column; gap: 8px; }
+  li::marker { color: var(--muted); }
+
+  /* ---------- code ---------- */
+
+  code {
+    font-family: var(--f-mono);
+    font-size: 0.855em;
+    background: var(--code-bg);
+    border: 1px solid var(--line-soft);
+    border-radius: 4px;
+    padding: 1px 5px;
+    word-break: break-word;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    overflow-x: auto;
+    margin: 0;
+  }
+  pre code {
+    background: none;
+    border: 0;
+    padding: 0;
+    font-size: 13.5px;
+    line-height: 1.62;
+    word-break: normal;
+    white-space: pre;
+  }
+  .c { color: var(--muted); }
+  .k { color: var(--accent); }
+  .filename {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: -12px;
+  }
+
+  /* ---------- callouts ---------- */
+
+  .trap {
+    background: var(--deny-soft);
+    border-left: 3px solid var(--deny);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 16px;
+  }
+  .trap .tag {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--deny);
+  }
+  .trap code { background: color-mix(in srgb, var(--deny-soft) 55%, transparent); border-color: transparent; }
+
+  .key {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .key .tag {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  /* ---------- tables ---------- */
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 15.5px; }
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  thead th {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 400;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td code { font-size: 0.82em; }
+
+  .yes { color: var(--allow); font-weight: 600; white-space: nowrap; }
+  .no  { color: var(--deny);  font-weight: 600; white-space: nowrap; }
+
+  /* ---------- figures ---------- */
+
+  figure {
+    margin: 12px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .figbox {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px 16px;
+    overflow-x: auto;
+  }
+  figure svg { display: block; width: 100%; min-width: 560px; max-width: 100%; height: auto; color: var(--ink); }
+  figcaption { font-size: 15px; color: var(--muted); max-width: var(--measure); }
+
+  .n-box { fill: var(--surface); stroke: currentColor; stroke-width: 1.25; }
+  .n-ns  { fill: none; stroke: currentColor; stroke-width: 1; stroke-dasharray: 5 4; opacity: 0.45; }
+  .n-t   { font-family: var(--f-body); font-size: 13px; fill: currentColor; }
+  .n-s   { font-family: var(--f-mono); font-size: 10.5px; fill: currentColor; opacity: 0.72; }
+  .n-lbl { font-family: var(--f-mono); font-size: 10.5px; fill: currentColor; opacity: 0.55; letter-spacing: 0.06em; }
+  .n-line { stroke: currentColor; stroke-width: 1.5; fill: none; }
+  .n-allow { stroke: var(--allow); }
+  .n-deny  { stroke: var(--deny); }
+  .n-acc   { stroke: var(--accent); }
+  .t-allow { fill: var(--allow); }
+  .t-deny  { fill: var(--deny); }
+  .t-acc   { fill: var(--accent); }
+
+  /* ---------- closing ---------- */
+
+  .checklist {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 720px) { .checklist { grid-template-columns: 1fr 1fr; } }
+  .check {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .check .verdict { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
+  .check .verdict.ok { color: var(--allow); }
+  .check .verdict.blocked { color: var(--deny); }
+  .check code { font-size: 12.5px; background: none; border: 0; padding: 0; display: block; white-space: pre-wrap; word-break: break-all; }
+  .check .why { font-size: 14px; color: var(--muted); }
+
+  footer.end {
+    padding: 44px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: var(--measure);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Lesson 020 · 28 августа 2026 · конспект</div>
+    <h1>Ingress и NetworkPolicy</h1>
+    <p class="deck">Как запрос снаружи доходит до фронтенда, почему бэкенд при этом остаётся закрытым — и почему запрет «бэк&nbsp;→&nbsp;фронт» не ломает ответы на запросы фронта.</p>
+    <div class="facts">
+      <span>minikube + calico</span>
+      <span>namespace shop</span>
+      <span>ingress-nginx</span>
+      <span>5 шагов</span>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- 1 -->
+    <section class="step">
+      <div class="stepnum">01</div>
+      <div class="body">
+        <h2>Инфраструктура: кластер, который умеет фильтровать</h2>
+        <p>Minikube — это один узел Kubernetes внутри VM или Docker-контейнера. Кластер настоящий: kube-apiserver, etcd, scheduler, kubelet, CNI-плагин. Не хватает только облачных интеграций — вместо <code>LoadBalancer</code> и облачных дисков идут эмуляции.</p>
+
+        <pre><code>minikube start --cni=calico
+minikube addons enable ingress</code></pre>
+
+        <p><strong>Addon — это не фича Minikube</strong>, а заранее подготовленный набор манифестов, который Minikube применяет за тебя. <code>ingress</code> разворачивает <strong>ingress-nginx controller</strong> — обычный Deployment с nginx внутри, живущий в namespace <code>ingress-nginx</code>. Он слушает 80/443 <em>прямо на IP узла</em> (hostPort), поэтому доступен снаружи по <code>minikube ip</code>.</p>
+
+        <div class="trap">
+          <div class="tag">Грабли 1 · молчаливый провал</div>
+          <p>Дефолтный CNI в Minikube (<code>kindnet</code>&nbsp;/&nbsp;<code>bridge</code>) <strong>не исполняет NetworkPolicy</strong>. Объекты создадутся, <code>kubectl get netpol</code> их покажет, а трафик будет ходить как ни в чём не бывало.</p>
+          <p>NetworkPolicy — это <em>спецификация</em>; исполняет её CNI. Нужен Calico или Cilium, и задать CNI можно только при создании кластера: на живой кластер флаг не накатывается, проще <code>minikube delete</code> и заново.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section class="step">
+      <div class="stepnum">02</div>
+      <div class="body">
+        <h2>Окружение: namespace — это не файрвол</h2>
+        <p>Namespace даёт изоляцию <em>имён и политик</em>, но не сетевой периметр. Разделение важно понять сразу, иначе половина задания кажется бессмысленной.</p>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Namespace даёт</th><th>Namespace не даёт</th></tr></thead>
+            <tbody>
+              <tr><td>Уникальность имён: <code>web</code> в двух ns — два разных объекта</td><td>Изоляцию сети: под из ns&nbsp;A по умолчанию свободно ходит в ns&nbsp;B</td></tr>
+              <tr><td>Область действия RBAC, ResourceQuota, LimitRange</td><td>Ограничение CPU/RAM само по себе</td></tr>
+              <tr><td>Область действия NetworkPolicy</td><td>Изоляцию узлов</td></tr>
+              <tr><td>Массовое удаление: <code>kubectl delete ns shop</code></td><td>Защиту от обращения по FQDN <code>backend.shop.svc.cluster.local</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <pre><code>kubectl create namespace shop
+kubectl config set-context --current --namespace=shop   <span class="c"># чтобы не писать -n везде</span></code></pre>
+
+        <p>NetworkPolicy — объект, <strong>привязанный к namespace</strong>: она отбирает поды только внутри своего ns. Поэтому Deployment-ы, Service-ы, Ingress и политики кладём в один <code>shop</code>.</p>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section class="step">
+      <div class="stepnum">03</div>
+      <div class="body">
+        <h2>Приложение: всё держится на метках</h2>
+        <p><strong>Pod</strong> — минимальная единица: контейнеры с общим IP и сетевым стеком. Смертен, IP меняется при каждом перезапуске. <strong>Deployment</strong> держит N реплик и катит обновления. <strong>Service</strong> — стабильная точка входа: вечный <code>ClusterIP</code>, DNS-имя <code>&lt;svc&gt;.&lt;ns&gt;.svc.cluster.local</code> и список живых Pod IP внутри.</p>
+
+        <figure>
+          <div class="figbox">
+            <svg viewBox="0 0 720 268" role="img" aria-label="Deployment, Service и NetworkPolicy независимо друг от друга ссылаются на одну и ту же метку пода app=backend">
+              <defs>
+                <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+                </marker>
+              </defs>
+
+              <rect class="n-box" x="16" y="20" width="216" height="56" rx="6"></rect>
+              <text class="n-t" x="32" y="44">Deployment backend</text>
+              <text class="n-s" x="32" y="62">template.metadata.labels</text>
+
+              <rect class="n-box" x="16" y="106" width="216" height="56" rx="6"></rect>
+              <text class="n-t" x="32" y="130">Service backend</text>
+              <text class="n-s" x="32" y="148">spec.selector</text>
+
+              <rect class="n-box" x="16" y="192" width="216" height="56" rx="6"></rect>
+              <text class="n-t" x="32" y="216">NetworkPolicy</text>
+              <text class="n-s" x="32" y="234">spec.podSelector</text>
+
+              <path class="n-line" d="M232,48 L330,48 L330,110 L436,110" marker-end="url(#a1)"></path>
+              <path class="n-line" d="M232,134 L436,134" marker-end="url(#a1)"></path>
+              <path class="n-line" d="M232,220 L330,220 L330,158 L436,158" marker-end="url(#a1)"></path>
+
+              <text class="n-lbl" x="246" y="40">создаёт с меткой</text>
+              <text class="n-lbl" x="290" y="126">отбирает по метке</text>
+              <text class="n-lbl" x="246" y="240">фильтрует по метке</text>
+
+              <rect class="n-box" x="440" y="86" width="248" height="96" rx="6"></rect>
+              <text class="n-t" x="460" y="112">Pod</text>
+              <rect x="460" y="126" width="208" height="34" rx="4" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1"></rect>
+              <text class="n-s" x="474" y="148" fill="var(--accent)" opacity="1">labels: app=backend</text>
+            </svg>
+          </div>
+          <figcaption>Метка — единственный связующий ключ. Service не знает про Deployment, NetworkPolicy не знает про Service: все трое независимо спрашивают «дай поды с меткой <code>app=backend</code>». Поэтому метки на подах — это API безопасности.</figcaption>
+        </figure>
+
+        <div class="filename">k8s/10-backend.yaml</div>
+        <pre><code>apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: shop
+spec:
+  type: ClusterIP        <span class="c"># только внутри кластера, наружу не торчит</span>
+  selector:
+    app: backend
+  ports:
+    - port: 80           <span class="c"># порт Service</span>
+      targetPort: 8080   <span class="c"># порт контейнера</span></code></pre>
+
+        <h3>Почему оба сервиса — ClusterIP</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Тип</th><th>Кто достучится</th><th>Тут</th></tr></thead>
+            <tbody>
+              <tr><td><code>ClusterIP</code></td><td>только поды кластера</td><td class="yes">✔ фронт и бэк</td></tr>
+              <tr><td><code>NodePort</code></td><td>любой, кто знает IP узла и порт 30000+</td><td class="no">✕ вторая дверь наружу</td></tr>
+              <tr><td><code>LoadBalancer</code></td><td>весь интернет</td><td class="no">✕</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Фронтенд тоже <code>ClusterIP</code>: наружу его выставляет Ingress, а не Service. Сделаешь фронт NodePort — получишь неконтролируемый вход в приложение мимо всей выстроенной маршрутизации.</p>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section class="step">
+      <div class="stepnum">04</div>
+      <div class="body">
+        <h2>Маршрутизация: одна дверь снаружи</h2>
+        <p>Две сущности, которые постоянно путают:</p>
+        <ul>
+          <li><strong>Ingress</strong> (объект) — декларация «хост <code>shop.local</code>, путь <code>/</code> → Service <code>frontend:80</code>». Сам по себе это запись в etcd, она ничего не маршрутизирует.</li>
+          <li><strong>Ingress Controller</strong> (под) — nginx, который читает все Ingress-объекты через API и переписывает свой конфиг. Вот он и гоняет трафик.</li>
+        </ul>
+        <p>Нет контроллера — Ingress-объект есть, колонка <code>ADDRESS</code> пустая, ничего не работает.</p>
+
+        <div class="filename">k8s/20-ingress.yaml</div>
+        <pre><code>spec:
+  ingressClassName: nginx
+  rules:
+    - host: shop.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend   <span class="c"># упомянут ТОЛЬКО фронтенд —</span>
+                port:            <span class="c"># правила для backend нет намеренно</span>
+                  number: 80</code></pre>
+
+        <figure>
+          <div class="figbox">
+            <svg viewBox="0 0 924 372" role="img" aria-label="Путь запроса: браузер обращается на IP узла, ingress-nginx controller передаёт запрос на Pod IP фронтенда минуя ClusterIP, фронтенд идёт к бэкенду через Service; прямой путь снаружи к бэкенду отсутствует">
+              <defs>
+                <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+                </marker>
+                <marker id="a2acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"></path>
+                </marker>
+                <marker id="a2deny" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="var(--deny)"></path>
+                </marker>
+              </defs>
+
+              <rect class="n-box" x="14" y="106" width="102" height="54" rx="6"></rect>
+              <text class="n-t" x="65" y="139" text-anchor="middle">Браузер</text>
+
+              <rect class="n-ns" x="162" y="22" width="748" height="272" rx="10"></rect>
+              <text class="n-lbl" x="178" y="44">УЗЕЛ MINIKUBE</text>
+
+              <rect class="n-ns" x="186" y="62" width="196" height="132" rx="8"></rect>
+              <text class="n-lbl" x="200" y="82">NS INGRESS-NGINX</text>
+              <rect class="n-box" x="200" y="98" width="168" height="62" rx="6"></rect>
+              <text class="n-t" x="284" y="124" text-anchor="middle">ingress-nginx</text>
+              <text class="n-s" x="284" y="142" text-anchor="middle">controller · :80</text>
+
+              <rect class="n-ns" x="430" y="62" width="458" height="212" rx="8"></rect>
+              <text class="n-lbl" x="444" y="82">NS SHOP</text>
+              <rect class="n-box" x="452" y="98" width="168" height="62" rx="6"></rect>
+              <text class="n-t" x="536" y="124" text-anchor="middle">frontend</text>
+              <text class="n-s" x="536" y="142" text-anchor="middle">nginx · :80</text>
+              <rect class="n-box" x="700" y="98" width="168" height="62" rx="6"></rect>
+              <text class="n-t" x="784" y="124" text-anchor="middle">backend</text>
+              <text class="n-s" x="784" y="142" text-anchor="middle">http-echo · :8080</text>
+
+              <line class="n-line" x1="120" y1="129" x2="194" y2="129" marker-end="url(#a2)"></line>
+              <text class="n-lbl" x="157" y="118" text-anchor="middle">nodeIP:80</text>
+
+              <line class="n-line n-acc" x1="372" y1="129" x2="446" y2="129" marker-end="url(#a2acc)"></line>
+              <text class="n-lbl t-acc" x="409" y="112" text-anchor="middle" opacity="1">по Pod IP</text>
+              <text class="n-lbl t-acc" x="409" y="152" text-anchor="middle" opacity="1">мимо ClusterIP</text>
+
+              <line class="n-line" x1="624" y1="129" x2="694" y2="129" marker-end="url(#a2)"></line>
+              <text class="n-lbl" x="659" y="112" text-anchor="middle">svc :80</text>
+              <text class="n-lbl" x="659" y="152" text-anchor="middle">→ pod :8080</text>
+
+              <path class="n-line n-deny" stroke-dasharray="6 5" d="M65,166 C65,318 300,330 520,330 C700,330 784,318 784,172" marker-end="url(#a2deny)"></path>
+              <rect x="452" y="316" width="150" height="26" rx="13" fill="var(--surface)" stroke="var(--deny)" stroke-width="1"></rect>
+              <text class="n-s t-deny" x="527" y="333" text-anchor="middle" opacity="1">прямого пути нет</text>
+            </svg>
+          </div>
+          <figcaption>Синим — ключевой факт: контроллер живёт в чужом namespace и обращается к фронтенду <strong>напрямую по Pod IP</strong>, минуя ClusterIP Service. Поэтому политика «пускать к фронту» должна разрешать namespace <code>ingress-nginx</code>, а не Service.</figcaption>
+        </figure>
+
+        <p>«Доступ снаружи исключительно на фронтенд» достигается <strong>отсутствием</strong> правила для backend, а не каким-то запретом. Проверка: <code>minikube ip</code> → строка <code>&lt;ip&gt; shop.local</code> в <code>C:\Windows\System32\drivers\etc\hosts</code> → <code>curl http://shop.local</code>.</p>
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section class="step">
+      <div class="stepnum">05</div>
+      <div class="body">
+        <h2>NetworkPolicy: изоляция</h2>
+
+        <div class="key">
+          <div class="tag">Четыре аксиомы</div>
+          <ol>
+            <li><strong>По умолчанию сеть плоская.</strong> Любой под ходит к любому поду в любом namespace. Kubernetes — не файрвол «из коробки».</li>
+            <li><strong>Политика — это whitelist.</strong> Как только на под навелась хотя бы одна политика с <code>Ingress</code> в <code>policyTypes</code>, весь входящий трафик к нему запрещён, кроме явно разрешённого. Для <code>Egress</code> — отдельно и независимо.</li>
+            <li><strong>Политики складываются по ИЛИ.</strong> Приоритетов нет, <code>deny</code>-правил в API нет. Две политики на один под — объединение разрешений. Запретить что-то, <em>добавив</em> правило, невозможно: запрещают тем, что не разрешают.</li>
+            <li><strong>Ingress и Egress независимы.</strong> Правило на вход в бэкенд ничего не говорит о его исходящих соединениях.</li>
+          </ol>
+        </div>
+
+        <h3>Почему запрет «бэк → фронт» не ломает ответы</h3>
+        <p>Это тот пункт задания, который выглядит как противоречие: мы запрещаем бэкенду ходить к фронтенду — и при этом фронтенд продолжает получать от бэкенда ответы на свои запросы.</p>
+
+        <figure>
+          <div class="figbox">
+            <svg viewBox="0 0 760 262" role="img" aria-label="Соединение frontend к backend разрешено, ответ той же сессии проходит автоматически по conntrack, новое соединение backend к frontend запрещено Egress-политикой">
+              <defs>
+                <marker id="a3allow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="var(--allow)"></path>
+                </marker>
+                <marker id="a3deny" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="var(--deny)"></path>
+                </marker>
+              </defs>
+
+              <rect class="n-box" x="34" y="92" width="184" height="72" rx="6"></rect>
+              <text class="n-t" x="126" y="122" text-anchor="middle">frontend</text>
+              <text class="n-s" x="126" y="142" text-anchor="middle">app=frontend</text>
+
+              <rect class="n-box" x="542" y="92" width="184" height="72" rx="6"></rect>
+              <text class="n-t" x="634" y="122" text-anchor="middle">backend</text>
+              <text class="n-s" x="634" y="142" text-anchor="middle">app=backend</text>
+
+              <line class="n-line n-allow" x1="226" y1="110" x2="534" y2="110" marker-end="url(#a3allow)"></line>
+              <text class="n-s t-allow" x="380" y="100" text-anchor="middle" opacity="1">новое соединение · разрешено Ingress-политикой бэка</text>
+
+              <line class="n-line n-allow" stroke-dasharray="6 4" x1="534" y1="148" x2="226" y2="148" marker-end="url(#a3allow)"></line>
+              <text class="n-s t-allow" x="380" y="166" text-anchor="middle" opacity="1">ответ той же сессии · conntrack, разрешён сам собой</text>
+
+              <polyline class="n-line n-deny" points="634,172 634,214 126,214 126,178" marker-end="url(#a3deny)"></polyline>
+              <text class="n-s t-deny" x="380" y="236" text-anchor="middle" opacity="1">новое соединение · запрещено Egress-политикой бэка</text>
+              <rect x="356" y="200" width="36" height="28" rx="6" fill="var(--surface)" stroke="var(--deny)" stroke-width="1"></rect>
+              <g stroke="var(--deny)" stroke-width="1.6" stroke-linecap="round">
+                <line x1="367" y1="207" x2="381" y2="221"></line>
+                <line x1="381" y1="207" x2="367" y2="221"></line>
+              </g>
+            </svg>
+          </div>
+          <figcaption>Противоречия нет: NetworkPolicy работает поверх conntrack и фильтрует <strong>установление соединения</strong>, а не отдельные пакеты. Разрешив <code>frontend → backend</code>, ты автоматически разрешил обратные пакеты этой же TCP-сессии. Egress-запрет режет только новые соединения, инициированные бэкендом.</figcaption>
+        </figure>
+
+        <h3>Четыре политики, которые закрывают задание</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Файл</th><th>На кого</th><th>Что разрешает</th></tr></thead>
+            <tbody>
+              <tr><td><code>30-netpol-default-deny</code></td><td>все поды ns</td><td>ничего — база изоляции, Ingress + Egress</td></tr>
+              <tr><td><code>31-netpol-frontend</code></td><td><code>app=frontend</code></td><td>вход: только из ns <code>ingress-nginx</code><br>выход: backend:8080 и DNS</td></tr>
+              <tr><td><code>32-netpol-backend</code></td><td><code>app=backend</code></td><td>вход: только от <code>app=frontend</code><br>выход: только DNS</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="filename">k8s/30-netpol-default-deny.yaml</div>
+        <pre><code>spec:
+  podSelector: {}          <span class="c"># пустой селектор = ВСЕ поды namespace</span>
+  policyTypes: [Ingress, Egress]</code></pre>
+
+        <div class="filename">k8s/32-netpol-backend.yaml</div>
+        <pre><code>spec:
+  podSelector:
+    matchLabels: { app: backend }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: frontend }
+      ports:
+        - protocol: TCP
+          port: 8080       <span class="c"># порт КОНТЕЙНЕРА, не порт Service</span></code></pre>
+
+        <p>Это правило одновременно решает два пункта задания: разрешает <code>фронт → бэк</code> <em>и</em> закрывает прямой внешний доступ к бэкенду — внешний трафик физически приходит от ingress-controller, а он под селектор <code>app=frontend</code> не попадает.</p>
+
+        <div class="trap">
+          <div class="tag">Грабли 2 · namespaceSelector</div>
+          <p>Он матчится по <strong>меткам</strong> namespace, а не по имени. Метку <code>kubernetes.io/metadata.name</code> Kubernetes ставит сам, начиная с 1.22 — на неё и опираемся. Проверить: <code>kubectl get ns ingress-nginx --show-labels</code>.</p>
+        </div>
+
+        <div class="trap">
+          <div class="tag">Грабли 3 · какой порт писать</div>
+          <p>В <code>ports</code> указывается порт <strong>пода</strong>. Service со своим <code>port: 80</code> — это DNAT средствами kube-proxy: к моменту фильтрации адрес уже переписан в <code>podIP:8080</code>.</p>
+        </div>
+
+        <div class="trap">
+          <div class="tag">Грабли 4 · потерянный DNS</div>
+          <p>Как только на поде появляется любая Egress-политика, он теряет доступ к CoreDNS. Симптом: <code>could not resolve host backend</code>, при этом <code>wget podIP:8080</code> работает. Правило для DNS нужно добавлять в <strong>каждую</strong> Egress-политику:</p>
+          <pre><code>    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports: [{ protocol: UDP, port: 53 }, { protocol: TCP, port: 53 }]</code></pre>
+          <p>И следи за дефисами: <code>- namespaceSelector</code> и <code>- podSelector</code> двумя элементами списка — это <strong>ИЛИ</strong>; те же два ключа под одним дефисом — <strong>И</strong> («под с такой меткой в таком ns»). Один символ меняет смысл правила целиком.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- проверки -->
+    <section class="step">
+      <div class="stepnum">✓</div>
+      <div class="body">
+        <h2>Проверка: что должно получиться</h2>
+        <div class="checklist wide">
+          <div class="check">
+            <div class="verdict ok">Работает</div>
+            <code>curl http://shop.local/</code>
+            <div class="why">Фронтенд доступен снаружи — Ingress ведёт на него.</div>
+          </div>
+          <div class="check">
+            <div class="verdict ok">Работает</div>
+            <code>kubectl -n shop exec deploy/frontend -- wget -qO- http://backend/</code>
+            <div class="why">Фронт ходит к бэку: разрешено Ingress-политикой бэкенда.</div>
+          </div>
+          <div class="check">
+            <div class="verdict blocked">Timeout</div>
+            <code>kubectl run probe -n default --rm -it --image=busybox:1.36 --restart=Never -- wget -qO- --timeout=3 http://backend.shop.svc.cluster.local/</code>
+            <div class="why">Чужой namespace под селектор <code>app=frontend</code> не подходит.</div>
+          </div>
+          <div class="check">
+            <div class="verdict blocked">Timeout</div>
+            <code>kubectl run bp -n shop --rm -it --image=busybox:1.36 --restart=Never --labels app=backend -- wget -qO- --timeout=3 http://frontend/</code>
+            <div class="why">Обратный трафик: Egress бэкенда разрешает только DNS.</div>
+          </div>
+        </div>
+
+        <div class="key">
+          <div class="tag">Как читать результат</div>
+          <p><strong>Timeout / зависание</strong> — пакет дропнут политикой, всё правильно. <strong>Connection refused</strong> — пакет дошёл до узла назначения, политика <em>не сработала</em>: проверяй CNI (<code>kubectl -n kube-system get pods | grep calico</code>) и совпадение меток в селекторах.</p>
+        </div>
+
+        <h3>Сводка: почему требования выполнены</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Требование</th><th>Чем достигается</th></tr></thead>
+            <tbody>
+              <tr><td>Снаружи только фронтенд</td><td>Ingress упоминает лишь <code>frontend</code>; оба Service — <code>ClusterIP</code>; политика фронта пускает только ns <code>ingress-nginx</code></td></tr>
+              <tr><td>Фронтенд → бэкенд разрешён</td><td>Явное <code>ingress.from.podSelector: app=frontend</code> на бэкенде + Egress фронта на порт 8080</td></tr>
+              <tr><td>Внешний доступ к бэкенду закрыт</td><td><code>default-deny-all</code> и отсутствие правила для <code>ingress-nginx</code> у бэкенда</td></tr>
+              <tr><td>Обратный трафик бэк → фронт запрещён</td><td><code>default-deny-all</code> включил Egress на бэкенде, разрешён только DNS; ответы на запросы фронта живут за счёт conntrack</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="end">
+    <p>Готовые манифесты лежат в <code>HomeWork/k8s/</code> — применяются одной командой <code>kubectl apply -f .</code>, файлы пронумерованы так, чтобы namespace создавался первым.</p>
+    <p>Полный текстовый конспект — <code>HomeWork/theory.md</code>.</p>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,88 @@
+---
+# ============================================================================
+# СЦЕНАРИЙ 2: КАСТОМНОЕ ОПРЕДЕЛЕНИЕ ОШИБКИ
+# ----------------------------------------------------------------------------
+# Ситуация A: скрипт бэкапа ВСЕГДА завершается с rc=0, об ошибке сообщает
+#             только текстом в stdout. Ansible такую задачу считает успешной.
+# Критично?   ДА. Несделанный бэкап - это авария.
+# Реакция:    failed_when по содержимому stdout.
+#
+# Ситуация B: скрипт проверки лицензии возвращает rc=2 = "истекает скоро".
+# Критично?   НЕТ. Это предупреждение, а не ошибка.
+# Реакция:    failed_when: rc not in [0, 2].
+#
+# Ситуация C: grep не нашёл строку (rc=1). Это ответ "нет", а не сбой.
+# Реакция:    failed_when: false.
+# ============================================================================
+- name: "S02 | Custom failure conditions (failed_when)"
+  hosts: webservers
+  gather_facts: false
+
+  vars:
+    backup_mode: ok            # ok | broken   (переопределяется через -e)
+    bin_dir: /usr/local/bin
+
+  tasks:
+
+    - name: "2.0 Deploy business scripts"
+      ansible.builtin.copy:
+        dest: "{{ bin_dir }}/{{ item.name }}"
+        mode: '0755'
+        content: "{{ item.body }}"
+      loop:
+        - name: backup.sh
+          body: |
+            #!/bin/sh
+            # Бэкап всегда выходит с кодом 0, ошибку печатает в stdout.
+            echo "backup: started"
+            if [ "$1" = "broken" ]; then
+                echo "ERROR: backup destination /mnt/backup is not writable"
+                exit 0
+            fi
+            echo "backup: 128 MB written to /mnt/backup/$(date -u +%Y%m%d)"
+            echo "backup: finished OK"
+            exit 0
+        - name: check_license.sh
+          body: |
+            #!/bin/sh
+            # 0 - лицензия в порядке
+            # 2 - истекает менее чем через 30 дней (предупреждение)
+            # 1 - истекла (реальная ошибка)
+            echo "license: valid, expires in 12 days"
+            exit 2
+      loop_control:
+        label: "{{ item.name }}"
+
+    # --- A: rc=0, но по бизнес-логике это провал -------------------------
+    - name: "2.1 Run backup (rc is always 0, the error lives in stdout)"
+      ansible.builtin.command: "{{ bin_dir }}/backup.sh {{ backup_mode }}"
+      register: backup
+      changed_when: "'written' in backup.stdout"
+      failed_when: "'ERROR' in backup.stdout"
+
+    - name: "2.2 Backup report"
+      ansible.builtin.debug:
+        var: backup.stdout_lines
+
+    # --- B: rc!=0, но по бизнес-логике это норма -------------------------
+    - name: "2.3 License check (rc=2 is a warning, not a failure)"
+      ansible.builtin.command: "{{ bin_dir }}/check_license.sh"
+      register: license
+      changed_when: false
+      failed_when: license.rc not in [0, 2]
+
+    - name: "2.4 License warning"
+      ansible.builtin.debug:
+        msg: "WARNING: {{ license.stdout }} (rc={{ license.rc }}) - renew it, but do not stop the deploy"
+      when: license.rc == 2
+
+    # --- C: "не найдено" - это ответ, а не ошибка ------------------------
+    - name: "2.5 Is the debug module enabled in nginx.conf?"
+      ansible.builtin.shell: "grep -c 'debug_connection' /etc/nginx/nginx.conf"
+      register: grep_out
+      changed_when: false
+      failed_when: false          # grep rc=1 = "не найдено", это нормально
+
+    - name: "2.6 grep verdict"
+      ansible.builtin.debug:
+        msg: "debug_connection found: {{ (grep_out.rc == 0) | ternary(grep_out.stdout ~ ' time(s)', 'no') }}"

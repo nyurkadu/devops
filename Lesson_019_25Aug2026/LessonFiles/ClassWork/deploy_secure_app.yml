@@ -1,0 +1,18 @@
+---
+- name: Deploy Secure Database Configuration
+  hosts: webservers
+  become: true
+
+  tasks:
+    - name: Ensure target config directory exists
+      file:
+        path: /var/www/app
+        state: directory
+        mode: '0755'
+
+    - name: Deploy database config with restricted permissions
+      template:
+        src: templates/db_config.php.j2
+        dest: /var/www/app/db_config.php
+        mode: '0600'   # Restrict read permissions to root only
+      no_log: true     # PREVENTS SENSITIVE DATA FROM PRINTING IN TERMINAL LOGS

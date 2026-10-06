@@ -1,0 +1,2 @@
+# Applies only to hosts in the [centos] inventory group.
+nginx_package: nginx

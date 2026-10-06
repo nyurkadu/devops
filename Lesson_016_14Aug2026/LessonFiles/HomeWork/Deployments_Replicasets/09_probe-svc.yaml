@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: probe-svc
+  labels:
+    app: probe-svc
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: probe-svc
+  template:
+    metadata:
+      labels:
+        app: probe-svc
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27
+          command:
+            - /bin/sh
+            - -c
+            - >
+              echo "I am $HOSTNAME" > /usr/share/nginx/html/index.html &&
+              echo ok > /usr/share/nginx/html/live &&
+              echo ok > /usr/share/nginx/html/startup &&
+              exec nginx -g 'daemon off;'
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          startupProbe:
+            httpGet:
+              path: /startup
+              port: 80
+            periodSeconds: 2
+            failureThreshold: 15
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 80
+            periodSeconds: 5
+            failureThreshold: 3
+          # ВАЖНО: readiness проверяет тот же путь "/", который запрашивают клиенты.
+          # Значит "сломанный под" одинаково виден и пробе, и пользователю —
+          # можно измерить, сколько запросов получит ошибку до вывода пода из сервиса.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 2
+            failureThreshold: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: probe-svc-svc
+spec:
+  selector:
+    app: probe-svc
+  ports:
+    - port: 80
+      targetPort: 80

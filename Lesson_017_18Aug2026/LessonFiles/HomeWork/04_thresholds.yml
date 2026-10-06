@@ -1,0 +1,52 @@
+---
+# ============================================================================
+# СЦЕНАРИЙ 4: БИЗНЕС-ПОРОГИ (warning vs critical)
+# ----------------------------------------------------------------------------
+# Ситуация:  диск заполняется.
+#            <= 70%  -> всё хорошо, работаем
+#            > 70%   -> предупреждение, деплой продолжается
+#            > 90%   -> критично, останавливаем плейбук
+# Реакция:   один и тот же факт даёт разную реакцию в зависимости от порога:
+#            failed_when для критичного уровня + when/ternary для warning.
+# ============================================================================
+- name: "S04 | Business thresholds: warning vs critical"
+  hosts: webservers
+  gather_facts: true
+
+  vars:
+    disk_warning_pct: 70
+    disk_critical_pct: 90      # поставь 1 через -e, чтобы увидеть падение
+    min_free_mem_mb: 64
+
+  tasks:
+
+    - name: "4.1 Measure root disk usage"
+      ansible.builtin.shell: "df -P / | awk 'NR==2 {print $5}' | tr -d '%'"
+      register: disk
+      changed_when: false
+      failed_when: disk.stdout | int > disk_critical_pct | int
+
+    - name: "4.2 Severity via ternary"
+      ansible.builtin.debug:
+        msg: >-
+          disk={{ disk.stdout }}% threshold={{ disk_warning_pct }}%
+          severity={{ (disk.stdout | int > disk_warning_pct | int) | ternary('WARNING', 'OK') }}
+
+    - name: "4.3 Warning zone: log it, but keep going"
+      ansible.builtin.debug:
+        msg: "WARNING: disk usage {{ disk.stdout }}% is above {{ disk_warning_pct }}%, plan a cleanup"
+      when: disk.stdout | int > disk_warning_pct | int
+
+    - name: "4.4 Free memory precondition (hard stop)"
+      ansible.builtin.fail:
+        msg: >-
+          Not enough free memory: {{ ansible_facts['memfree_mb'] }}MB
+          (need at least {{ min_free_mem_mb }}MB)
+      when: ansible_facts['memfree_mb'] | int < min_free_mem_mb | int
+
+    - name: "4.5 Host is healthy enough to deploy"
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} OK: disk {{ disk.stdout }}%,
+          free mem {{ ansible_facts['memfree_mb'] }}MB,
+          os {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}

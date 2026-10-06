@@ -1,0 +1,99 @@
+# =============================================================================
+#  40-service-shop-clusterip.yaml  —  Service "shop-svc" типа ClusterIP
+# =============================================================================
+#
+#  ЧТО ЭТО ДЕЛАЕТ
+#  Даёт трём (или шести) подам shop одно стабильное имя и один стабильный
+#  виртуальный IP. Поды — расходный материал: имена и IP меняются при каждом
+#  пересоздании. Service — единственный способ обращаться к ним осмысленно.
+#
+#  ГЛАВНОЕ, ЧТО НАДО ПОНЯТЬ ПРО ClusterIP
+#  Этого адреса НЕ СУЩЕСТВУЕТ. Он не назначен ни одному интерфейсу, ни один
+#  процесс на нём не слушает, он не отвечает на ping. ClusterIP — это просто
+#  строка в правиле iptables:
+#
+#      -A KUBE-SERVICES -d <clusterIP>/32 -p tcp --dport 80 -j KUBE-SVC-XXXX
+#      -A KUBE-SVC-XXXX --probability 0.33 -j KUBE-SEP-AAAA
+#      -A KUBE-SEP-AAAA -j DNAT --to-destination <IP пода>:80
+#
+#  Ядро подменяет адрес назначения (DNAT) на IP живого пода. Удалите правила —
+#  сервис исчезнет, хотя объект в etcd останется.
+#
+#  ЧТО СОЗДАЁТСЯ АВТОМАТИЧЕСКИ ВМЕСТЕ С SERVICE
+#    * EndpointSlice — список IP ГОТОВЫХ подов (прошедших readinessProbe).
+#      Именно он связывает абстракцию с реальностью; правила DNAT строятся
+#      по нему, а не по селектору напрямую.
+#    * Запись в CoreDNS: shop-svc.lab.svc.cluster.local -> clusterIP
+#
+#  ИМПЕРАТИВНЫЙ ЭКВИВАЛЕНТ
+#      kubectl expose deployment shop --port=80 --name=shop-svc -n lab
+#
+#  ПРИМЕНИТЬ
+#      kubectl apply -f k8s-anatomy/40-service-shop-clusterip.yaml
+#
+#  НАЙТИ РЕАЛЬНЫЕ АДРЕСА, НА КОТОРЫЕ ВЕДЁТ DNAT
+#      kubectl get endpointslices -n lab -l kubernetes.io/service-name=shop-svc -o wide
+#
+#  УВИДЕТЬ САМИ ПРАВИЛА В ЯДРЕ НОДЫ
+#      minikube ssh -p calico -n calico -- "sudo iptables-save -t nat | grep shop-svc"
+#
+#  ДОКАЗАТЬ, ЧТО ClusterIP — ФИКЦИЯ
+#      $ip = (kubectl get svc shop-svc -n lab -o jsonpath='{.spec.clusterIP}')
+#      Test-NetConnection $ip -Port 80 -InformationLevel Quiet     # False: с хоста недостижим
+#      kubectl run probe -n lab --rm -it --restart=Never --image=busybox:1.36 -- `
+#        sh -c "nslookup shop-svc; wget -qO- --timeout=3 http://shop-svc | head -4"
+#      # изнутри кластера тот же адрес работает. Разница ровно одна:
+#      # на Windows-хосте нет правил kube-proxy, поэтому пакету некуда пойти.
+#
+#  УДАЛИТЬ
+#      kubectl delete -f k8s-anatomy/40-service-shop-clusterip.yaml
+#
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: shop-svc
+  namespace: lab
+  labels:
+    app: shop
+spec:
+  type: ClusterIP              # умолчание. Адрес виден только ИЗНУТРИ кластера.
+                               # Альтернативы: NodePort (см. файл 41),
+                               # LoadBalancer, ExternalName.
+
+  # ---------------------------------------------------------------------------
+  #  selector — какие поды обслуживать. Работает ТОЛЬКО по меткам:
+  #  ни имя Deployment, ни имя ReplicaSet здесь не участвуют.
+  #  Service вообще не знает, что над подами есть какой-то контроллер.
+  #
+  #  Заметьте: pod-template-hash в селекторе НЕТ. Поэтому во время rolling
+  #  update Service отбирает поды ОБЕИХ версий сразу и льёт трафик в них
+  #  параллельно — это и есть плавное переключение на физическом уровне.
+  # ---------------------------------------------------------------------------
+  selector:
+    app: shop
+
+  ports:
+    - name: http               # имя порта обязательно, если портов больше одного
+      protocol: TCP
+      port: 80                 # порт на ClusterIP — по нему обращаются клиенты
+      targetPort: http         # куда переадресовать в поде. Здесь ссылка на
+                               # ИМЯ порта из спеки пода (ports.name: http).
+                               # Так надёжнее числа: поменяете порт в поде —
+                               # Service не придётся править.
+
+  # ---------------------------------------------------------------------------
+  #  sessionAffinity: None — умолчание, оставлено явно ради предупреждения.
+  #  ClientIP прибивает клиента к одному поду по IP источника. Это НЕ решение
+  #  проблемы долгих соединений (gRPC, WebSocket, keep-alive), а её усиление:
+  #  балансировка и так происходит один раз на соединение, а ClientIP делает
+  #  привязку ещё жёстче. Правильные решения — клиентская балансировка через
+  #  headless-сервис или L7-прокси, который балансирует каждый запрос.
+  # ---------------------------------------------------------------------------
+  sessionAffinity: None
+
+  # Внутренняя политика трафика. Cluster — умолчание: слать на поды любых нод.
+  # Local — только на поды СВОЕЙ ноды; сохраняет source IP, но при отсутствии
+  # локального пода трафик просто теряется.
+  internalTrafficPolicy: Cluster
