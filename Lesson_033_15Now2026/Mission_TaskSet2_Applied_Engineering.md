@@ -18,7 +18,7 @@ Rules:
 
 ## Step 0: Prerequisites (repeat in every new terminal)
 
-You need Task Set 1 finished: Jenkins running and both Lesson 9 jobs present. If they're missing, see Step 0 and the Appendix of [Mission_TaskSet1_Guided_Reinforcement.md](Mission_TaskSet1_Guided_Reinforcement.md).
+You need Task Set 1 finished: Jenkins running and both Lesson 9 jobs present. If they're missing, follow [Appendix A of Mission_TaskSet1_Guided_Reinforcement.md](Mission_TaskSet1_Guided_Reinforcement.md#appendix-a-prepare-the-environment-do-this-first).
 
 ```bash
 export JENKINS_URL="http://localhost:8080"
@@ -211,7 +211,7 @@ Only **step 6** changes. The orchestrator now:
 3. stops with `exit 1` if the checksum doesn't match,
 4. copies the verified file to `ingested_audit.json` and runs the usual round-trip ID check.
 
-This is the Task Set 1 Appendix version: no `-u`, and the crumb request uses `curl -sf`.
+This is the Task Set 1 Appendix A (A.4) version: no `-u`, and the crumb request uses `curl -sf`.
 
 ```bash
 cat << 'EOF' > orchestrator_payload.sh
@@ -652,5 +652,5 @@ exit code: 1
 | `[ERROR] Could not download artifact 'audit_report.sha256'` | Orchestrator updated but the worker wasn't (no `.sha256` archived) | Redo A.1 and A.2 |
 | `sha256sum: audit_report.json: No such file or directory` | JSON saved under another name or in another folder | Save it as `audit_report.json` next to the `.sha256` |
 | Fan-out row `dev ... TRIGGER_FAILED` | Orchestrator choices don't include `dev` | Redo A.5 (or Task Set 1, Task 3.3) |
-| Groovy prints `CREATED_NEW_JOB` | Jobs were missing (new Killercoda VM) | Rebuild via the Task Set 1 Appendix, then start Task Set 2 again |
+| Groovy prints `CREATED_NEW_JOB` | Jobs were missing (new Killercoda VM) | Rebuild via Task Set 1, Appendix A, then start Task Set 2 again |
 | JSON decode traceback in any check | `JENKINS_URL` unset in this tab, or Jenkins down | Redo Step 0 |

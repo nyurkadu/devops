@@ -43,7 +43,7 @@ curl -s -o /dev/null -w "%{http_code}\n" "${JENKINS_URL}/job/lesson9-audit-worke
 curl -s -g "${JENKINS_URL}/job/lesson9-audit-worker/api/json?tree=builds[number,result,duration]{0,5}"; echo
 ```
 
-If Jenkins returns `000` or the job is missing, follow Step 0 and the Appendix of [Mission_TaskSet1_Guided_Reinforcement.md](Mission_TaskSet1_Guided_Reinforcement.md) first.
+If Jenkins returns `000` or the job is missing, follow [Appendix A of Mission_TaskSet1_Guided_Reinforcement.md](Mission_TaskSet1_Guided_Reinforcement.md#appendix-a-prepare-the-environment-do-this-first) first.
 
 ---
 

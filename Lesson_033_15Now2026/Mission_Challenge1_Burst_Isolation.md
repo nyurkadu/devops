@@ -40,7 +40,7 @@ curl -s -g "${JENKINS_URL}/job/lesson9-audit-worker/api/json?tree=property[param
 
 The worker from Task Set 1 or Task Set 2 works. Both accept `dev/staging/prod` and archive `audit_report.json`.
 
-If Jenkins returns `000` or the job is missing, follow Step 0 and the Appendix of [Mission_TaskSet1_Guided_Reinforcement.md](Mission_TaskSet1_Guided_Reinforcement.md) first.
+If Jenkins returns `000` or the job is missing, follow [Appendix A of Mission_TaskSet1_Guided_Reinforcement.md](Mission_TaskSet1_Guided_Reinforcement.md#appendix-a-prepare-the-environment-do-this-first) first.
 
 ---
 
