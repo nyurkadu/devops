@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hellogo-helm
+  namespace: argo-cd               # Applications live next to Argo CD
+spec:
+  project: default
+  sources:
+    # 1) the chart, from the PUBLIC repo
+    - repoURL: https://github.com/nyurkadu/devops.git
+      targetRevision: HEAD
+      path: Lesson_035_20Now2026/gitops/hellogo-chart
+      helm:
+        valueFiles:
+          - $values/hellogo/values.yaml   # "$values" = root of the source with ref: values
+    # 2) the values, from the PRIVATE repo (no path: it only provides files)
+    - repoURL: https://github.com/nyurkadu/hellogo-values.git
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hellogo-helm
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
