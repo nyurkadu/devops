@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helm: практикум</title>
+<style>
+:root {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --text: #1d2330;
+  --muted: #5b6475;
+  --border: #dde1e8;
+  --accent: #0f62fe;
+  --accent-soft: #e8f0ff;
+  --code-bg: #0f1724;
+  --code-text: #e6edf3;
+  --ok-bg: #eaf7ee;
+  --ok-border: #2e8b57;
+  --warn-bg: #fff6e5;
+  --warn-border: #d48806;
+  --task-bg: #f3f0ff;
+  --task-border: #6f42c1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --text: #e6edf3;
+    --muted: #9aa4b2;
+    --border: #2b323c;
+    --accent: #79a8ff;
+    --accent-soft: #1a2638;
+    --code-bg: #0a0e14;
+    --code-text: #e6edf3;
+    --ok-bg: #12261a;
+    --ok-border: #3fb67a;
+    --warn-bg: #2a2110;
+    --warn-border: #e0a43a;
+    --task-bg: #1f1a30;
+    --task-border: #a383e8;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --text: #e6edf3;
+  --muted: #9aa4b2;
+  --border: #2b323c;
+  --accent: #79a8ff;
+  --accent-soft: #1a2638;
+  --code-bg: #0a0e14;
+  --code-text: #e6edf3;
+  --ok-bg: #12261a;
+  --ok-border: #3fb67a;
+  --warn-bg: #2a2110;
+  --warn-border: #e0a43a;
+  --task-bg: #1f1a30;
+  --task-border: #a383e8;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.layout { display: flex; max-width: 1200px; margin: 0 auto; }
+nav.toc {
+  position: sticky; top: 0; align-self: flex-start;
+  width: 250px; flex-shrink: 0; height: 100vh; overflow-y: auto;
+  padding: 24px 16px; border-right: 1px solid var(--border);
+  font-size: 14px;
+}
+nav.toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 8px; }
+nav.toc a { display: block; padding: 4px 8px; color: var(--text); text-decoration: none; border-radius: 6px; }
+nav.toc a:hover { background: var(--accent-soft); color: var(--accent); }
+main { flex: 1; min-width: 0; padding: 32px 40px 80px; }
+h1 { font-size: 32px; margin: 0 0 8px; }
+h2 { font-size: 24px; margin: 48px 0 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 18px; margin: 24px 0 8px; }
+p, li { max-width: 75ch; }
+.lead { color: var(--muted); font-size: 18px; }
+code { font-family: Consolas, "Cascadia Code", monospace; font-size: .92em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+pre {
+  position: relative;
+  background: var(--code-bg); color: var(--code-text);
+  padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+  font: 14px/1.5 Consolas, "Cascadia Code", monospace;
+}
+pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+.copy {
+  position: absolute; top: 8px; right: 8px;
+  font: 12px system-ui, sans-serif; padding: 3px 8px;
+  border: 1px solid #3a4452; border-radius: 5px;
+  background: #1c2330; color: #c9d1d9; cursor: pointer;
+}
+.copy:hover { background: #2a3342; }
+.box { border-left: 4px solid; border-radius: 6px; padding: 12px 16px; margin: 16px 0; }
+.box p:first-child { margin-top: 0; }
+.box p:last-child { margin-bottom: 0; }
+.note { background: var(--accent-soft); border-color: var(--accent); }
+.warn { background: var(--warn-bg); border-color: var(--warn-border); }
+.task { background: var(--task-bg); border-color: var(--task-border); }
+.task > strong:first-child { display: block; margin-bottom: 4px; }
+details {
+  background: var(--ok-bg); border-left: 4px solid var(--ok-border);
+  border-radius: 6px; padding: 10px 16px; margin: 12px 0 24px;
+}
+details summary { cursor: pointer; font-weight: 600; }
+details[open] summary { margin-bottom: 8px; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 15px; }
+th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: var(--surface); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 16px 0; }
+.theme-btn {
+  float: right; font: 13px system-ui, sans-serif; padding: 5px 10px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text); cursor: pointer;
+}
+@media (max-width: 860px) {
+  .layout { display: block; }
+  nav.toc { position: static; width: auto; height: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 16px; }
+  main { padding: 20px 16px 60px; }
+  h1 { font-size: 26px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc">
+  <h2>Содержание</h2>
+  <a href="#intro">0. Что такое Helm</a>
+  <a href="#chart">0.1. Что такое чарт</a>
+  <a href="#prep">1. Подготовка окружения</a>
+  <a href="#repo">2. Репозитории: add, update, remove</a>
+  <a href="#explore">3. Изучение чарта</a>
+  <a href="#install">4. Установка релиза</a>
+  <a href="#set">5. Изменение настроек через --set</a>
+  <a href="#values">6. Файлы значений -f</a>
+  <a href="#history">7. История и откат</a>
+  <a href="#template">8. Просмотр манифестов</a>
+  <a href="#own">9. Свой чарт</a>
+  <a href="#delete">10. Удаление: uninstall и очистка</a>
+  <a href="#final">11. Итоговое задание</a>
+  <a href="#cheat">12. Шпаргалка</a>
+</nav>
+<main>
+<button class="theme-btn" id="themeBtn" type="button">Сменить тему</button>
+<h1>Helm: практикум для начинающих</h1>
+<p class="lead">Пособие с практическими заданиями для Windows (PowerShell). После каждого задания есть раскрывающийся блок «Ожидаемый результат». Сначала попробуйте сами, потом сверьтесь.</p>
+
+<div class="box note">
+<p><strong>Как пользоваться.</strong> Все команды выполняются в PowerShell. Вывод в блоках «Ожидаемый результат» показан примерно: версии, время, хэши и имена подов у вас будут другими. Важна структура и ключевые значения.</p>
+</div>
+
+<!-- 0 -->
+<h2 id="intro">0. Что такое Helm</h2>
+<p><strong>Helm</strong> — это пакетный менеджер для Kubernetes. Вместо того чтобы применять десяток YAML-файлов через <code>kubectl apply</code>, вы устанавливаете один пакет.</p>
+<table>
+<tr><th>Термин</th><th>Что означает</th></tr>
+<tr><td><strong>Chart (чарт)</strong></td><td>Пакет: набор шаблонов Kubernetes-манифестов и файл настроек по умолчанию <code>values.yaml</code>.</td></tr>
+<tr><td><strong>Repository (репозиторий)</strong></td><td>Место, где хранятся чарты (как apt- или npm-репозиторий).</td></tr>
+<tr><td><strong>Release (релиз)</strong></td><td>Конкретная установка чарта в кластер под своим именем. Один чарт можно установить много раз под разными именами.</td></tr>
+<tr><td><strong>Values (значения)</strong></td><td>Параметры, которые подставляются в шаблоны: число реплик, образ, порт и т. д.</td></tr>
+<tr><td><strong>Revision (ревизия)</strong></td><td>Номер версии релиза. Каждый <code>install</code>, <code>upgrade</code> или <code>rollback</code> создаёт новую ревизию.</td></tr>
+</table>
+
+<!-- 0.1 -->
+<h2 id="chart">0.1. Что такое чарт</h2>
+<p><strong>Чарт (chart)</strong> — это пакет для Kubernetes: набор файлов, который описывает, как развернуть приложение в кластере. Проще всего понять через аналогию:</p>
+<table>
+<tr><th>Мир Windows / Linux</th><th>Мир Kubernetes</th></tr>
+<tr><td>Установщик программы (<code>.msi</code>, <code>.deb</code>)</td><td><strong>Чарт</strong></td></tr>
+<tr><td>Менеджер пакетов (<code>winget</code>, <code>apt</code>)</td><td><strong>Helm</strong></td></tr>
+<tr><td>Репозиторий пакетов</td><td><strong>Репозиторий чартов</strong> (например, <code>podinfo</code>)</td></tr>
+<tr><td>Установленная программа</td><td><strong>Релиз</strong> (установленный чарт, например <code>my-app</code>)</td></tr>
+</table>
+
+<h3>Зачем нужны чарты</h3>
+<p>Чтобы запустить приложение в Kubernetes, обычно нужно несколько YAML-манифестов: Deployment (поды), Service (сетевой доступ), ConfigMap (настройки), иногда Ingress, Secret и другие. Без Helm их пишут вручную и применяют через <code>kubectl apply</code> по одному. Чарт собирает их в один пакет, и всё ставится одной командой:</p>
+<pre><code>helm install my-app podinfo/podinfo</code></pre>
+
+<h3>Из чего состоит чарт</h3>
+<pre><code>mychart/
+├── Chart.yaml      # паспорт: имя, версия чарта, версия приложения
+├── values.yaml     # настройки по умолчанию (реплики, образ, порт...)
+└── templates/      # шаблоны YAML-манифестов
+    ├── deployment.yaml
+    └── service.yaml</code></pre>
+
+<h3>Главная идея: шаблоны и значения</h3>
+<p>В шаблонах вместо конкретных чисел стоят переменные:</p>
+<pre><code># templates/deployment.yaml
+replicas: {{ .Values.replicaCount }}</code></pre>
+<pre><code># values.yaml
+replicaCount: 1</code></pre>
+<p>При установке Helm подставляет значения в шаблоны и получает готовые манифесты. Поэтому один и тот же чарт можно ставить с разными настройками, не меняя сами шаблоны:</p>
+<pre><code>helm install dev  podinfo/podinfo --set replicaCount=1
+helm install prod podinfo/podinfo --set replicaCount=5</code></pre>
+
+<h3>Две версии у каждого чарта</h3>
+<ul>
+<li><strong>Chart version</strong> — версия самого пакета. Меняется, когда меняются шаблоны.</li>
+<li><strong>App version</strong> — версия приложения внутри, например версия образа podinfo.</li>
+</ul>
+<p>Обе версии видны в задании 2.3, в колонках <code>CHART VERSION</code> и <code>APP VERSION</code>.</p>
+
+<div class="box note">
+<p><strong>Где вы встретите чарты в пособии:</strong> в разделе 3 вы заглянете внутрь готового чарта (<code>helm show values</code>), а в разделе 9 создадите свой (<code>helm create mychart</code>) и увидите его структуру.</p>
+</div>
+
+<!-- 1 -->
+<h2 id="prep">1. Подготовка окружения</h2>
+<p>Helm у вас уже установлен. Для работы ему нужен Kubernetes-кластер и <code>kubectl</code>. На Windows проще всего использовать один из вариантов:</p>
+<ul>
+<li><strong>Docker Desktop</strong>: Settings → Kubernetes → Enable Kubernetes → Apply &amp; restart. <code>kubectl</code> ставится вместе с ним.</li>
+<li><strong>minikube</strong>: <code>winget install Kubernetes.minikube</code>, затем <code>minikube start</code>.</li>
+</ul>
+
+<div class="box task">
+<strong>Задание 1.1. Проверьте инструменты</strong>
+<p>Выполните команды и убедитесь, что Helm видит кластер.</p>
+</div>
+<pre><code>helm version
+kubectl version --client
+kubectl get nodes
+kubectl config current-context</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>version.BuildInfo{Version:"v4.x.x", GitCommit:"...", GitTreeState:"clean", GoVersion:"go1.x"}
+
+Client Version: v1.3x.x
+
+NAME             STATUS   ROLES           AGE   VERSION
+docker-desktop   Ready    control-plane   5d    v1.3x.x
+
+docker-desktop</code></pre>
+<p>Узел должен быть в статусе <code>Ready</code>. Если у вас minikube, имя узла и контекста будет <code>minikube</code>.</p>
+</details>
+
+<div class="box task">
+<strong>Задание 1.2. Создайте рабочий namespace</strong>
+<p>Все упражнения будем делать в отдельном namespace <code>helm-lab</code>, чтобы потом легко всё удалить.</p>
+</div>
+<pre><code>kubectl create namespace helm-lab
+kubectl get namespaces</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>namespace/helm-lab created
+
+NAME              STATUS   AGE
+default           Active   5d
+helm-lab          Active   3s
+kube-node-lease   Active   5d
+kube-public       Active   5d
+kube-system       Active   5d</code></pre>
+</details>
+
+<!-- 2 -->
+<h2 id="repo">2. Репозитории: add, update, remove</h2>
+<p>В заданиях используется чарт <strong>podinfo</strong>: маленькое веб-приложение, созданное специально для обучения и тестов. Оно отвечает JSON-ом, и в ответе видно, какие настройки применились.</p>
+
+<div class="box task">
+<strong>Задание 2.1. Добавьте репозитории (add)</strong>
+<p>Добавьте репозиторий podinfo и ещё один для практики, prometheus-community. Затем выведите список.</p>
+</div>
+<pre><code>helm repo add podinfo https://stefanprodan.github.io/podinfo
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo list</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>"podinfo" has been added to your repositories
+"prometheus-community" has been added to your repositories
+
+NAME                    URL
+podinfo                 https://stefanprodan.github.io/podinfo
+prometheus-community    https://prometheus-community.github.io/helm-charts</code></pre>
+</details>
+
+<div class="box task">
+<strong>Задание 2.2. Обновите индекс репозиториев (update)</strong>
+<p>Helm хранит локальную копию списка чартов. Команда <code>update</code> скачивает свежий список. Делайте её перед установкой, чтобы получить последние версии.</p>
+</div>
+<pre><code>helm repo update</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "podinfo" chart repository
+...Successfully got an update from the "prometheus-community" chart repository
+Update Complete. ⎈Happy Helming!⎈</code></pre>
+</details>
+
+<div class="box task">
+<strong>Задание 2.3. Найдите чарты (search)</strong>
+<p>Найдите podinfo в добавленных репозиториях, затем посмотрите все доступные версии.</p>
+</div>
+<pre><code>helm search repo podinfo
+helm search repo podinfo/podinfo --versions</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>NAME             CHART VERSION   APP VERSION   DESCRIPTION
+podinfo/podinfo  6.x.x           6.x.x         Podinfo Helm chart for Kubernetes
+
+NAME             CHART VERSION   APP VERSION   DESCRIPTION
+podinfo/podinfo  6.x.x           6.x.x         Podinfo Helm chart for Kubernetes
+podinfo/podinfo  6.x.x           6.x.x         Podinfo Helm chart for Kubernetes
+...</code></pre>
+<p><strong>CHART VERSION</strong> — версия пакета Helm. <strong>APP VERSION</strong> — версия самого приложения внутри.</p>
+</details>
+
+<div class="box task">
+<strong>Задание 2.4. Удалите репозиторий (remove)</strong>
+<p>Репозиторий prometheus-community нам больше не нужен. Удалите его и проверьте список.</p>
+</div>
+<pre><code>helm repo remove prometheus-community
+helm repo list</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>"prometheus-community" has been removed from your repositories
+
+NAME      URL
+podinfo   https://stefanprodan.github.io/podinfo</code></pre>
+</details>
+
+<!-- 3 -->
+<h2 id="explore">3. Изучение чарта перед установкой</h2>
+<p>Перед установкой полезно посмотреть, что внутри чарта и какие настройки он принимает.</p>
+
+<div class="box task">
+<strong>Задание 3.1. Посмотрите описание и значения по умолчанию</strong>
+<p>Сохраните значения по умолчанию в файл и найдите в нём параметры <code>replicaCount</code>, <code>ui.message</code>, <code>ui.color</code> и <code>service.type</code>.</p>
+</div>
+<pre><code>helm show chart podinfo/podinfo
+helm show values podinfo/podinfo &gt; podinfo-defaults.yaml
+Select-String -Path podinfo-defaults.yaml -Pattern "replicaCount|message:|color:|type: ClusterIP"</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>apiVersion: v1
+appVersion: 6.x.x
+description: Podinfo Helm chart for Kubernetes
+name: podinfo
+version: 6.x.x
+...
+
+podinfo-defaults.yaml:...:replicaCount: 1
+podinfo-defaults.yaml:...:  color: "#34577c"
+podinfo-defaults.yaml:...:  message: ""
+podinfo-defaults.yaml:...:  type: ClusterIP</code></pre>
+<p>В файле <code>podinfo-defaults.yaml</code> лежат все настройки, которые можно менять. Откройте его в редакторе (<code>notepad podinfo-defaults.yaml</code>) и просмотрите.</p>
+</details>
+
+<!-- 4 -->
+<h2 id="install">4. Установка релиза (install)</h2>
+<p>Синтаксис: <code>helm install &lt;имя-релиза&gt; &lt;чарт&gt; [флаги]</code>.</p>
+
+<div class="box task">
+<strong>Задание 4.1. Установите podinfo</strong>
+<p>Установите чарт под именем <code>my-app</code> в namespace <code>helm-lab</code>. Затем выведите список релизов и подов.</p>
+</div>
+<pre><code>helm install my-app podinfo/podinfo -n helm-lab
+helm list -n helm-lab
+kubectl get pods,svc -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>NAME: my-app
+LAST DEPLOYED: Sat Oct 24 12:00:00 2026
+NAMESPACE: helm-lab
+STATUS: deployed
+REVISION: 1
+NOTES:
+1. Get the application URL by running these commands:
+  ...
+
+NAME     NAMESPACE  REVISION  UPDATED          STATUS    CHART           APP VERSION
+my-app   helm-lab   1         2026-10-24 ...   deployed  podinfo-6.x.x   6.x.x
+
+NAME                                  READY   STATUS    RESTARTS   AGE
+pod/my-app-podinfo-6d9c8b7f5d-abcde   1/1     Running   0          20s
+
+NAME                     TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)             AGE
+service/my-app-podinfo   ClusterIP   10.96.12.34    &lt;none&gt;        9898/TCP,9999/TCP   20s</code></pre>
+<p>Имя ресурсов складывается из имени релиза и имени чарта: <code>my-app-podinfo</code>. Ревизия равна 1.</p>
+</details>
+
+<div class="box task">
+<strong>Задание 4.2. Проверьте, что приложение отвечает</strong>
+<p>Пробросьте порт сервиса на свой компьютер. Команда <code>port-forward</code> занимает окно, поэтому <strong>откройте второе окно PowerShell</strong> для запроса.</p>
+</div>
+<pre><code># Окно 1
+kubectl port-forward svc/my-app-podinfo 9898:9898 -n helm-lab
+
+# Окно 2
+curl.exe http://localhost:9898</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>{
+  "hostname": "my-app-podinfo-6d9c8b7f5d-abcde",
+  "version": "6.x.x",
+  "revision": "...",
+  "color": "#34577c",
+  "logo": "https://raw.githubusercontent.com/stefanprodan/podinfo/gh-pages/cuddle_clap.gif",
+  "message": "greetings from podinfo v6.x.x",
+  "goos": "linux",
+  "goarch": "amd64",
+  ...
+}</code></pre>
+<p>Можно открыть <code>http://localhost:9898</code> в браузере: там будет страница с логотипом. Запомните значения <code>color</code> и <code>message</code>, дальше мы их изменим.</p>
+</details>
+<div class="box warn">
+<p><strong>Важно для Windows.</strong> Пишите <code>curl.exe</code>, а не <code>curl</code>. В Windows PowerShell 5.1 слово <code>curl</code> — это псевдоним команды <code>Invoke-WebRequest</code>, и вывод будет другим.</p>
+</div>
+
+<div class="box task">
+<strong>Задание 4.3. Статус релиза</strong>
+<p>Посмотрите подробную информацию об установленном релизе.</p>
+</div>
+<pre><code>helm status my-app -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>NAME: my-app
+LAST DEPLOYED: Sat Oct 24 12:00:00 2026
+NAMESPACE: helm-lab
+STATUS: deployed
+REVISION: 1
+NOTES:
+...</code></pre>
+</details>
+
+<!-- 5 -->
+<h2 id="set">5. Изменение настроек через --set (upgrade)</h2>
+<p>Чтобы изменить настройки установленного релиза, используется <code>helm upgrade</code>. Флаг <code>--set ключ=значение</code> переопределяет одно значение из <code>values.yaml</code>. Вложенные ключи пишутся через точку: <code>ui.message</code>.</p>
+
+<div class="box warn">
+<p><strong>После каждого upgrade и rollback перезапускайте port-forward.</strong> <code>port-forward</code> привязывается к одному конкретному поду, даже если вы указали Service. При <code>upgrade</code> или <code>rollback</code> Kubernetes заменяет старые поды новыми (у них другой хэш в имени), старый под удаляется, и туннель закрывается. Тогда <code>curl.exe</code> выдаёт:</p>
+<pre><code>curl: (7) Failed to connect to localhost:9898 after 2231 ms: Could not connect to server</code></pre>
+<p>Что делать:</p>
+<ol>
+<li>Дождитесь, пока новые поды будут в статусе <code>Running</code>: <code>kubectl get pods -n helm-lab</code>.</li>
+<li>В окне 1 запустите <code>port-forward</code> заново: <code>kubectl -n helm-lab port-forward svc/my-app-podinfo 9898:9898</code>.</li>
+<li>В окне 2 повторите <code>curl.exe http://localhost:9898</code>.</li>
+</ol>
+<p>Поле <code>hostname</code> в ответе обычно не меняется между запросами: <code>port-forward</code> всегда ходит в один под, балансировки между репликами здесь нет.</p>
+</div>
+
+<div class="box task">
+<strong>Задание 5.1. Увеличьте число реплик и измените сообщение</strong>
+<p>Сделайте 3 реплики и задайте своё сообщение.</p>
+</div>
+<pre><code>helm upgrade my-app podinfo/podinfo -n helm-lab --set replicaCount=3 --set ui.message="Hello DevOps"
+kubectl get pods -n helm-lab
+helm get values my-app -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>Release "my-app" has been upgraded. Happy Helming!
+NAME: my-app
+NAMESPACE: helm-lab
+STATUS: deployed
+REVISION: 2
+...
+
+NAME                              READY   STATUS    RESTARTS   AGE
+my-app-podinfo-7f8b9c6d4e-aaaaa   1/1     Running   0          15s
+my-app-podinfo-7f8b9c6d4e-bbbbb   1/1     Running   0          15s
+my-app-podinfo-7f8b9c6d4e-ccccc   1/1     Running   0          10s
+
+USER-SUPPLIED VALUES:
+replicaCount: 3
+ui:
+  message: Hello DevOps</code></pre>
+<p>Ревизия стала 2. <code>helm get values</code> показывает только те значения, которые вы задали сами. После перезапуска <code>port-forward</code> запрос <code>curl.exe http://localhost:9898</code> вернёт <code>"message": "Hello DevOps"</code>.</p>
+</details>
+
+<div class="box task">
+<strong>Задание 5.2. Ловушка: upgrade без --reuse-values</strong>
+<p>Измените только цвет. Затем проверьте, сколько осталось реплик и что стало с сообщением.</p>
+</div>
+<pre><code>helm upgrade my-app podinfo/podinfo -n helm-lab --set ui.color="#ff5733"
+helm get values my-app -n helm-lab
+kubectl get pods -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>Release "my-app" has been upgraded. Happy Helming!
+...
+REVISION: 3
+
+USER-SUPPLIED VALUES:
+ui:
+  color: '#ff5733'
+
+NAME                              READY   STATUS    RESTARTS   AGE
+my-app-podinfo-5c4d3b2a1f-xxxxx   1/1     Running   0          12s</code></pre>
+<p><strong>Реплик снова одна, а сообщение пропало!</strong> Если при <code>upgrade</code> передать новые <code>--set</code>, Helm берёт значения по умолчанию из чарта плюс новые значения. Предыдущие <code>--set</code> не сохраняются.</p>
+</details>
+
+<div class="box task">
+<strong>Задание 5.3. Исправьте с помощью --reuse-values</strong>
+<p>Верните 3 реплики, используя флаг <code>--reuse-values</code>, и убедитесь, что цвет сохранился.</p>
+</div>
+<pre><code>helm upgrade my-app podinfo/podinfo -n helm-lab --reuse-values --set replicaCount=3
+helm get values my-app -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>Release "my-app" has been upgraded. Happy Helming!
+...
+REVISION: 4
+
+USER-SUPPLIED VALUES:
+replicaCount: 3
+ui:
+  color: '#ff5733'</code></pre>
+<p><code>--reuse-values</code> берёт значения из прошлой ревизии и добавляет новые. В реальной работе надёжнее хранить все настройки в файле и передавать его через <code>-f</code> (следующий раздел).</p>
+</details>
+
+<h3>Другие варианты --set</h3>
+<table>
+<tr><th>Пример</th><th>Что делает</th></tr>
+<tr><td><code>--set a=1,b=2</code></td><td>Несколько значений в одном флаге через запятую.</td></tr>
+<tr><td><code>--set-string image.tag=1.10</code></td><td>Всегда строка. Без этого <code>1.10</code> может превратиться в число <code>1.1</code>.</td></tr>
+<tr><td><code>--set "list={a,b,c}"</code></td><td>Список значений.</td></tr>
+<tr><td><code>--set "env[0].name=MODE"</code></td><td>Элемент списка по индексу.</td></tr>
+<tr><td><code>--set "podAnnotations.team=devops"</code></td><td>Добавить ключ в словарь.</td></tr>
+<tr><td><code>--set ui.message="a\,b"</code></td><td>Запятая внутри значения экранируется обратной косой чертой.</td></tr>
+<tr><td><code>--set-file key=path.txt</code></td><td>Значение берётся из содержимого файла.</td></tr>
+</table>
+
+<div class="box task">
+<strong>Задание 5.4. Добавьте аннотацию и измените тип сервиса</strong>
+<p>Добавьте подам аннотацию <code>team=devops</code> и сделайте сервис типа <code>NodePort</code>, сохранив прежние значения.</p>
+</div>
+<pre><code>helm upgrade my-app podinfo/podinfo -n helm-lab --reuse-values --set "podAnnotations.team=devops" --set service.type=NodePort
+kubectl get svc -n helm-lab
+kubectl get pods -n helm-lab -o jsonpath="{.items[0].metadata.annotations.team}"</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>Release "my-app" has been upgraded. Happy Helming!
+...
+REVISION: 5
+
+NAME             TYPE       CLUSTER-IP    EXTERNAL-IP   PORT(S)                         AGE
+my-app-podinfo   NodePort   10.96.12.34   &lt;none&gt;        9898:3xxxx/TCP,9999:3xxxx/TCP   10m
+
+devops</code></pre>
+</details>
+
+<!-- 6 -->
+<h2 id="values">6. Файлы значений (-f / --values)</h2>
+<p>В реальных проектах настройки хранят в YAML-файлах в Git: <code>values-dev.yaml</code>, <code>values-prod.yaml</code>. Так видно, что и когда менялось.</p>
+
+<div class="box task">
+<strong>Задание 6.1. Создайте файл значений для dev</strong>
+<p>Создайте файл <code>values-dev.yaml</code> (например, <code>notepad values-dev.yaml</code>) с таким содержимым:</p>
+</div>
+<pre><code>replicaCount: 2
+ui:
+  message: "Environment: DEV"
+  color: "#2e8b57"
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    memory: 64Mi</code></pre>
+<p>Примените файл:</p>
+<pre><code>helm upgrade my-app podinfo/podinfo -n helm-lab -f values-dev.yaml
+helm get values my-app -n helm-lab
+kubectl get pods -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>Release "my-app" has been upgraded. Happy Helming!
+...
+REVISION: 6
+
+USER-SUPPLIED VALUES:
+replicaCount: 2
+resources:
+  limits:
+    memory: 64Mi
+  requests:
+    cpu: 50m
+    memory: 32Mi
+ui:
+  color: '#2e8b57'
+  message: 'Environment: DEV'
+
+NAME                              READY   STATUS    RESTARTS   AGE
+my-app-podinfo-...-aaaaa          1/1     Running   0          10s
+my-app-podinfo-...-bbbbb          1/1     Running   0          10s</code></pre>
+<p>Аннотация и NodePort из задания 5.4 пропали, потому что их нет в файле. Это та же логика, что в задании 5.2.</p>
+</details>
+
+<div class="box task">
+<strong>Задание 6.2. Приоритет значений</strong>
+<p>Передайте одновременно файл и <code>--set</code> с другим числом реплик. Предскажите результат до запуска.</p>
+</div>
+<pre><code>helm upgrade my-app podinfo/podinfo -n helm-lab -f values-dev.yaml --set replicaCount=4
+kubectl get deploy my-app-podinfo -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>Release "my-app" has been upgraded. Happy Helming!
+...
+REVISION: 7
+
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+my-app-podinfo   4/4     4            4           20m</code></pre>
+<p>Приоритет от низшего к высшему: <code>values.yaml</code> чарта → файлы <code>-f</code> (каждый следующий важнее предыдущего) → <code>--set</code>. Поэтому реплик 4.</p>
+</details>
+
+<div class="box task">
+<strong>Задание 6.3. upgrade --install</strong>
+<p>Команда <code>helm upgrade --install</code> устанавливает релиз, если его нет, и обновляет, если он уже есть. Её часто используют в CI/CD. Установите второй релиз <code>my-app-2</code> этой командой.</p>
+</div>
+<pre><code>helm upgrade --install my-app-2 podinfo/podinfo -n helm-lab --set ui.message="Second release"
+helm list -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>Release "my-app-2" does not exist. Installing it now.
+NAME: my-app-2
+NAMESPACE: helm-lab
+STATUS: deployed
+REVISION: 1
+...
+
+NAME       NAMESPACE  REVISION  UPDATED   STATUS    CHART           APP VERSION
+my-app     helm-lab   7         ...       deployed  podinfo-6.x.x   6.x.x
+my-app-2   helm-lab   1         ...       deployed  podinfo-6.x.x   6.x.x</code></pre>
+<p>Один чарт установлен дважды, это два независимых релиза.</p>
+</details>
+
+<!-- 7 -->
+<h2 id="history">7. История и откат (history, rollback)</h2>
+
+<div class="box task">
+<strong>Задание 7.1. Посмотрите историю релиза</strong>
+</div>
+<pre><code>helm history my-app -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>REVISION  UPDATED   STATUS      CHART          APP VERSION  DESCRIPTION
+1         ...       superseded  podinfo-6.x.x  6.x.x        Install complete
+2         ...       superseded  podinfo-6.x.x  6.x.x        Upgrade complete
+3         ...       superseded  podinfo-6.x.x  6.x.x        Upgrade complete
+4         ...       superseded  podinfo-6.x.x  6.x.x        Upgrade complete
+5         ...       superseded  podinfo-6.x.x  6.x.x        Upgrade complete
+6         ...       superseded  podinfo-6.x.x  6.x.x        Upgrade complete
+7         ...       deployed    podinfo-6.x.x  6.x.x        Upgrade complete</code></pre>
+<p>Только одна ревизия в статусе <code>deployed</code>, остальные <code>superseded</code> (заменены).</p>
+</details>
+
+<div class="box task">
+<strong>Задание 7.2. Посмотрите значения конкретной ревизии</strong>
+<p>Какие значения были в ревизии 2?</p>
+</div>
+<pre><code>helm get values my-app -n helm-lab --revision 2</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>USER-SUPPLIED VALUES:
+replicaCount: 3
+ui:
+  message: Hello DevOps</code></pre>
+</details>
+
+<div class="box task">
+<strong>Задание 7.3. Откатитесь на ревизию 2</strong>
+</div>
+<pre><code>helm rollback my-app 2 -n helm-lab
+helm history my-app -n helm-lab
+helm get values my-app -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>Rollback was a success! Happy Helming!
+
+REVISION  UPDATED   STATUS      CHART          APP VERSION  DESCRIPTION
+...
+7         ...       superseded  podinfo-6.x.x  6.x.x        Upgrade complete
+8         ...       deployed    podinfo-6.x.x  6.x.x        Rollback to 2
+
+USER-SUPPLIED VALUES:
+replicaCount: 3
+ui:
+  message: Hello DevOps</code></pre>
+<p>Откат не удаляет историю, а создаёт <strong>новую ревизию 8</strong> с настройками ревизии 2. Без номера ревизии <code>helm rollback my-app</code> откатывает на предыдущую.</p>
+</details>
+
+<!-- 8 -->
+<h2 id="template">8. Просмотр манифестов без установки</h2>
+<p>Перед изменением полезно увидеть, какие YAML-манифесты получатся.</p>
+
+<div class="box task">
+<strong>Задание 8.1. Отрендерите шаблоны локально (template)</strong>
+<p>Сгенерируйте манифесты с 5 репликами и найдите строку <code>replicas</code>. Кластер при этом не меняется.</p>
+</div>
+<pre><code>helm template test podinfo/podinfo --set replicaCount=5 &gt; rendered.yaml
+Select-String -Path rendered.yaml -Pattern "kind:|replicas:"</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>rendered.yaml:...:kind: Service
+rendered.yaml:...:kind: Deployment
+rendered.yaml:...:  replicas: 5</code></pre>
+</details>
+
+<div class="box task">
+<strong>Задание 8.2. Пробный запуск (--dry-run)</strong>
+<p>Проверьте, что сделает upgrade, без реальных изменений.</p>
+</div>
+<pre><code>helm upgrade my-app podinfo/podinfo -n helm-lab --reuse-values --set replicaCount=10 --dry-run
+kubectl get deploy my-app-podinfo -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>Release "my-app" has been upgraded. Happy Helming!
+NAME: my-app
+...
+STATUS: pending-upgrade
+REVISION: 9
+HOOKS:
+MANIFEST:
+---
+# Source: podinfo/templates/service.yaml
+...
+  replicas: 10
+...
+
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+my-app-podinfo   3/3     3            3           40m</code></pre>
+<p>Helm показал манифесты с 10 репликами, но в кластере по-прежнему 3. <code>helm history</code> тоже не изменился.</p>
+</details>
+
+<div class="box task">
+<strong>Задание 8.3. Что реально установлено</strong>
+</div>
+<pre><code>helm get manifest my-app -n helm-lab
+helm get all my-app -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<p><code>get manifest</code> выводит YAML всех объектов текущей ревизии (Service, Deployment). <code>get all</code> выводит то же плюс значения, заметки (NOTES) и хуки.</p>
+</details>
+
+<!-- 9 -->
+<h2 id="own">9. Свой чарт</h2>
+
+<div class="box task">
+<strong>Задание 9.1. Создайте чарт</strong>
+</div>
+<pre><code>helm create mychart
+Get-ChildItem -Recurse mychart | Select-Object FullName</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>Creating mychart
+
+mychart\
+├── Chart.yaml          # имя, версия чарта и приложения
+├── values.yaml         # значения по умолчанию
+├── charts\             # зависимости (подчарты)
+└── templates\
+    ├── deployment.yaml
+    ├── service.yaml
+    ├── ingress.yaml
+    ├── hpa.yaml
+    ├── serviceaccount.yaml
+    ├── httproute.yaml  # есть в новых версиях Helm
+    ├── _helpers.tpl    # общие шаблонные функции
+    ├── NOTES.txt       # текст после установки
+    └── tests\
+        └── test-connection.yaml</code></pre>
+<p>Это рабочий чарт, который по умолчанию разворачивает nginx.</p>
+</details>
+
+<div class="box task">
+<strong>Задание 9.2. Добавьте свой шаблон ConfigMap</strong>
+<p>Создайте файл <code>mychart\templates\configmap.yaml</code>:</p>
+</div>
+<pre><code>apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mychart.fullname" . }}-config
+  labels:
+    {{- include "mychart.labels" . | nindent 4 }}
+data:
+  greeting: {{ .Values.greeting | quote }}
+  environment: {{ .Values.environment | default "dev" | quote }}</code></pre>
+<p>И добавьте в конец <code>mychart\values.yaml</code>:</p>
+<pre><code>greeting: "Hello from mychart"</code></pre>
+<p>Проверьте чарт линтером и отрендерите только новый шаблон:</p>
+<pre><code>helm lint .\mychart
+helm template demo .\mychart -s templates/configmap.yaml</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>==&gt; Linting .\mychart
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+
+---
+# Source: mychart/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-mychart-config
+  labels:
+    helm.sh/chart: mychart-0.1.0
+    app.kubernetes.io/name: mychart
+    app.kubernetes.io/instance: demo
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  greeting: "Hello from mychart"
+  environment: "dev"</code></pre>
+<p><code>environment</code> не задан в values, поэтому сработала функция <code>default</code>. Если линтер пишет <code>[ERROR]</code>, проверьте отступы в YAML.</p>
+</details>
+
+<div class="box task">
+<strong>Задание 9.3. Установите свой чарт и измените значения</strong>
+</div>
+<pre><code>helm install demo .\mychart -n helm-lab
+kubectl get configmap demo-mychart-config -n helm-lab -o jsonpath="{.data.greeting}"
+
+helm upgrade demo .\mychart -n helm-lab --set greeting="Updated via set" --set environment=prod
+kubectl get configmap demo-mychart-config -n helm-lab -o jsonpath="{.data}"</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>NAME: demo
+NAMESPACE: helm-lab
+STATUS: deployed
+REVISION: 1
+...
+
+Hello from mychart
+
+Release "demo" has been upgraded. Happy Helming!
+...
+REVISION: 2
+
+{"environment":"prod","greeting":"Updated via set"}</code></pre>
+</details>
+
+<div class="box task">
+<strong>Задание 9.4. Поднимите версию и упакуйте чарт</strong>
+<p>В <code>mychart\Chart.yaml</code> измените <code>version: 0.1.0</code> на <code>version: 0.2.0</code>. Затем упакуйте чарт в архив.</p>
+</div>
+<pre><code>helm package .\mychart
+Get-ChildItem *.tgz</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>Successfully packaged chart and saved it to: C:\...\mychart-0.2.0.tgz
+
+Mode          LastWriteTime     Length Name
+----          -------------     ------ ----
+-a----        24.10.2026 12:30    4xxx mychart-0.2.0.tgz</code></pre>
+<p>Такой архив можно установить командой <code>helm install x .\mychart-0.2.0.tgz</code> или загрузить в репозиторий (например, OCI-registry через <code>helm push</code>).</p>
+</details>
+
+<!-- 10 -->
+<h2 id="delete">10. Удаление (uninstall) и очистка</h2>
+
+<div class="box task">
+<strong>Задание 10.1. Удалите релиз, сохранив историю</strong>
+<p>Удалите <code>my-app-2</code> с флагом <code>--keep-history</code> и посмотрите на список релизов.</p>
+</div>
+<pre><code>helm uninstall my-app-2 -n helm-lab --keep-history
+helm list -n helm-lab
+helm list -n helm-lab --uninstalled
+helm history my-app-2 -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>release "my-app-2" uninstalled
+
+NAME     NAMESPACE  REVISION  ...  STATUS    CHART
+demo     helm-lab   2         ...  deployed  mychart-0.1.0
+my-app   helm-lab   8         ...  deployed  podinfo-6.x.x
+
+NAME       NAMESPACE  REVISION  ...  STATUS       CHART
+my-app-2   helm-lab   1         ...  uninstalled  podinfo-6.x.x
+
+REVISION  UPDATED  STATUS       CHART          APP VERSION  DESCRIPTION
+1         ...      uninstalled  podinfo-6.x.x  6.x.x        Uninstallation complete</code></pre>
+<p>Объекты Kubernetes удалены, но история сохранилась. Такой релиз можно вернуть: <code>helm rollback my-app-2 1 -n helm-lab</code>.</p>
+</details>
+
+<div class="box task">
+<strong>Задание 10.2. Полное удаление релизов</strong>
+</div>
+<pre><code>helm uninstall my-app demo -n helm-lab
+helm list -n helm-lab --all
+kubectl get all -n helm-lab</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>release "my-app" uninstalled
+release "demo" uninstalled
+
+NAME       NAMESPACE  REVISION  ...  STATUS       CHART
+my-app-2   helm-lab   1         ...  uninstalled  podinfo-6.x.x
+
+No resources found in helm-lab namespace.</code></pre>
+<p>Остался только <code>my-app-2</code> с сохранённой историей. Удалите его ещё раз без флага: <code>helm uninstall my-app-2 -n helm-lab</code>.</p>
+</details>
+
+<div class="box task">
+<strong>Задание 10.3. Удалите namespace и репозиторий</strong>
+</div>
+<pre><code>kubectl delete namespace helm-lab
+helm repo remove podinfo
+helm repo list</code></pre>
+<details><summary>Ожидаемый результат</summary>
+<pre><code>namespace "helm-lab" deleted
+"podinfo" has been removed from your repositories
+Error: no repositories to show</code></pre>
+</details>
+
+<!-- 11 -->
+<h2 id="final">11. Итоговое задание</h2>
+<div class="card">
+<p>Выполните самостоятельно, не подглядывая в разделы выше:</p>
+<ol>
+<li>Создайте namespace <code>final</code>.</li>
+<li>Снова добавьте репозиторий podinfo и обновите индекс.</li>
+<li>Создайте файлы <code>values-staging.yaml</code> (2 реплики, сообщение «STAGING», цвет <code>#d48806</code>) и <code>values-prod.yaml</code> (3 реплики, сообщение «PROD», цвет <code>#c0392b</code>).</li>
+<li>Установите релиз <code>shop</code> с настройками staging.</li>
+<li>Обновите его до prod, а затем через <code>--set</code> измените только сообщение на «PROD v2», не потеряв остальные значения prod.</li>
+<li>Откатитесь на staging-ревизию.</li>
+<li>Покажите историю и убедитесь, что откат создал новую ревизию.</li>
+<li>Удалите релиз, namespace и репозиторий.</li>
+</ol>
+</div>
+<details><summary>Решение и ожидаемый результат</summary>
+<pre><code>kubectl create namespace final
+helm repo add podinfo https://stefanprodan.github.io/podinfo
+helm repo update
+
+helm install shop podinfo/podinfo -n final -f values-staging.yaml
+helm upgrade shop podinfo/podinfo -n final -f values-prod.yaml
+helm upgrade shop podinfo/podinfo -n final -f values-prod.yaml --set ui.message="PROD v2"
+helm rollback shop 1 -n final
+helm history shop -n final
+
+helm uninstall shop -n final
+kubectl delete namespace final
+helm repo remove podinfo</code></pre>
+<p>История должна выглядеть так:</p>
+<pre><code>REVISION  STATUS      DESCRIPTION
+1         superseded  Install complete
+2         superseded  Upgrade complete
+3         superseded  Upgrade complete
+4         deployed    Rollback to 1</code></pre>
+<p>В шаге 5 тоже можно было написать <code>--reuse-values --set ui.message="PROD v2"</code>. Но вариант с повторной передачей файла надёжнее: итоговые значения всегда видны из команды.</p>
+</details>
+
+<!-- 12 -->
+<h2 id="cheat">12. Шпаргалка</h2>
+<table>
+<tr><th>Действие</th><th>Команда</th></tr>
+<tr><td>Добавить репозиторий</td><td><code>helm repo add &lt;имя&gt; &lt;url&gt;</code></td></tr>
+<tr><td>Обновить индекс репозиториев</td><td><code>helm repo update</code></td></tr>
+<tr><td>Список / удаление репозитория</td><td><code>helm repo list</code> / <code>helm repo remove &lt;имя&gt;</code></td></tr>
+<tr><td>Поиск чарта</td><td><code>helm search repo &lt;слово&gt; [--versions]</code></td></tr>
+<tr><td>Значения по умолчанию</td><td><code>helm show values &lt;чарт&gt;</code></td></tr>
+<tr><td>Установка</td><td><code>helm install &lt;релиз&gt; &lt;чарт&gt; -n &lt;ns&gt; [--create-namespace]</code></td></tr>
+<tr><td>Установка или обновление</td><td><code>helm upgrade --install &lt;релиз&gt; &lt;чарт&gt;</code></td></tr>
+<tr><td>Изменить настройку</td><td><code>helm upgrade &lt;релиз&gt; &lt;чарт&gt; --set key=value</code></td></tr>
+<tr><td>Сохранить прошлые значения</td><td><code>--reuse-values</code></td></tr>
+<tr><td>Файл значений</td><td><code>-f values.yaml</code></td></tr>
+<tr><td>Конкретная версия чарта</td><td><code>--version 6.x.x</code></td></tr>
+<tr><td>Дождаться готовности подов</td><td><code>--wait --timeout 5m</code></td></tr>
+<tr><td>Список релизов</td><td><code>helm list -n &lt;ns&gt;</code> / <code>helm list -A</code></td></tr>
+<tr><td>Текущие значения релиза</td><td><code>helm get values &lt;релиз&gt; [--all] [--revision N]</code></td></tr>
+<tr><td>Манифесты релиза</td><td><code>helm get manifest &lt;релиз&gt;</code></td></tr>
+<tr><td>История / откат</td><td><code>helm history &lt;релиз&gt;</code> / <code>helm rollback &lt;релиз&gt; [N]</code></td></tr>
+<tr><td>Рендер без установки</td><td><code>helm template &lt;релиз&gt; &lt;чарт&gt;</code> / <code>--dry-run</code></td></tr>
+<tr><td>Новый чарт / проверка / упаковка</td><td><code>helm create</code> / <code>helm lint</code> / <code>helm package</code></td></tr>
+<tr><td>Удаление релиза</td><td><code>helm uninstall &lt;релиз&gt; -n &lt;ns&gt; [--keep-history]</code></td></tr>
+</table>
+
+<div class="box note">
+<p><strong>Что изучать дальше:</strong> зависимости чартов (<code>dependencies</code> в <code>Chart.yaml</code> и <code>helm dependency update</code>), хуки (<code>helm.sh/hook</code>), тесты (<code>helm test</code>), OCI-реестры (<code>helm push</code>, <code>helm pull oci://...</code>), плагины (например, helm-diff) и инструменты над Helm: Helmfile, Argo CD, Flux.</p>
+</div>
+</main>
+</div>
+<script>
+document.querySelectorAll('pre').forEach(function (pre) {
+  var btn = document.createElement('button');
+  btn.className = 'copy';
+  btn.type = 'button';
+  btn.textContent = 'Копировать';
+  btn.addEventListener('click', function () {
+    var text = pre.querySelector('code') ? pre.querySelector('code').innerText : pre.innerText;
+    navigator.clipboard.writeText(text).then(function () {
+      btn.textContent = 'Скопировано';
+      setTimeout(function () { btn.textContent = 'Копировать'; }, 1500);
+    });
+  });
+  pre.appendChild(btn);
+});
+document.getElementById('themeBtn').addEventListener('click', function () {
+  var root = document.documentElement;
+  var dark = root.dataset.theme
+    ? root.dataset.theme === 'dark'
+    : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  root.dataset.theme = dark ? 'light' : 'dark';
+});
+</script>
+</body>
+</html>
