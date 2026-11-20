@@ -1,7 +1,8 @@
+# gitops/values-argocd.yaml
 configs:
   params:
-    server.insecure: true
+    server.insecure: true    # UI over plain HTTP, so no certificate warnings behind port-forward
 dex:
-  enabled: false
+  enabled: false             # no SSO, we log in as admin
 notifications:
-  enabled: false
+  enabled: false             # not needed for this homework
