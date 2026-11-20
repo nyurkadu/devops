@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-deployment
+  labels:
+    app: hello
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hello
+  template:
+    metadata:
+      labels:
+        app: hello
+    spec:
+      containers:
+        - name: hello
+          image: hellogo:8086
+          imagePullPolicy: IfNotPresent   # built locally into minikube, listens on 8086
+          ports:
+            - containerPort: 8086
+          env:
+            - name: GREETING
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: hello-secret
+          resources:
+            requests:
+              memory: "6Mi"
+              cpu: "250m"
+            limits:
+              memory: "32Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8086
+            periodSeconds: 1
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8086
+            periodSeconds: 1
