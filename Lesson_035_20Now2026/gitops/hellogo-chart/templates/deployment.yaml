@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-deployment
+  labels:
+    app: hello
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: hello
+  template:
+    metadata:
+      labels:
+        app: hello
+      annotations:
+        # new greeting -> new checksum -> pods restart by themselves
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: hello
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+          env:
+            - name: GREETING
+              valueFrom:
+                secretKeyRef:
+                  name: hello-secret
+                  key: username
+          resources:
+            requests:
+              memory: "6Mi"
+              cpu: "250m"
+            limits:
+              memory: "32Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.containerPort }}
+            periodSeconds: 1
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.containerPort }}
+            periodSeconds: 1

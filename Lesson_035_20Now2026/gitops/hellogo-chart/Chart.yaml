@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hellogo
+description: hellogo greeting app (Lesson 035)
+type: application
+version: 0.1.0
+appVersion: "8086"

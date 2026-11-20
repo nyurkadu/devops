@@ -1,0 +1,13 @@
+# Public defaults. The private repo overrides what it needs.
+replicaCount: 1
+greeting: "public default"
+
+image:
+  repository: hellogo
+  tag: "8086"
+  pullPolicy: IfNotPresent   # image is built locally into minikube
+
+containerPort: 8086          # the port compiled into hellogo/main.go
+
+service:
+  port: 80
